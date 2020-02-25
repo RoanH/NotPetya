@@ -5,3 +5,77 @@ Either the program is not a PE, or it was not compiled with debug information.
 Windows x86 PE RTTI Analyzer> Couldn't find type info structure.
 
 This is probably fine since it seems illogical to include debug information with malware.
+
+======
+
+No typical main function found. Instead going to entry point function.
+
+'entry' seems to resemble the DllMain entry point but is missing the 3rd parameter:
+
+> undefined4 entry(HMODULE param_1,int param_2){
+  if (param_2 == 1) {
+    DAT_1001f120 = param_1;
+    DisableThreadLibraryCalls(param_1);
+  }
+  return 1;
+}
+
+MSDN lists the signature as
+
+> BOOL WINAPI DllMain(
+  _In_ HINSTANCE hinstDLL,
+  _In_ DWORD     fdwReason,
+  _In_ LPVOID    lpvReserved
+);
+
+https://docs.microsoft.com/en-us/windows/win32/dlls/dllmain
+
+Documentation for the 3rd argument seems to suggest that it can be NULL for dynamic loads however.
+The body of the function checks for the second argument to be 1, from MSDN this is the constant for DLL_PROCESS_ATTACH meaning the DLL is being loaded. 
+The first parameter is suggested to be a HMODULE and is a handle to the DLL module. By definition HMODULE and HINSTANCE represent the same data type on Windows version that are more than 16-bits as can be found in the Data Types MSDN documentation https://docs.microsoft.com/en-us/windows/win32/winprog/windows-data-types.
+
+Given that this is the 'entry' point and we have no more information this being DllMain seems reasonable so we're going to input that into Ghidra.
+
+Assuming that the provided fdwReason is DLL_RPOCESS_ATTACH then it becomes clear that we store a handle to the DLL module and invoke DisableThreadLibraryCalls. The latter from MSDN https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-disablethreadlibrarycalls seems to just disable DLL_THREAD_ATTACH and DLL_THREAD_DETACH notifications though I have no idea what this means. We'll rename the DLL handle field however.
+
+After this the entry point returns 1 (true) for success.
+
+=====
+
+Given that this marks the end of the function we need something more. We know that were are loaded as a DLL. Moreover in Ghidra we can see that the entire DLL only exports two functions. One of them being the entry point we just looked at. A natural next point of investigation is the other exported function, labelled Ordinal_1 by Ghidra.
+
+=====
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
