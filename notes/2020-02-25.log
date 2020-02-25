@@ -1,0 +1,7 @@
+Analysis warning:
+
+PDB> Incomplete PDB information (GUID/Signature and/or age) associated with this program.
+Either the program is not a PE, or it was not compiled with debug information.
+Windows x86 PE RTTI Analyzer> Couldn't find type info structure.
+
+This is probably fine since it seems illogical to include debug information with malware.

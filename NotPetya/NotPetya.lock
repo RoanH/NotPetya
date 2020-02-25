@@ -1,0 +1,9 @@
+#Ghidra Lock File
+#Tue Feb 25 17:00:38 CET 2020
+OS\ Name=Linux
+OS\ Version=4.15.0-88-generic
+Username=roan
+Hostname=roanXPS
+<META>\ Supports\ File\ Channel\ Locking=Channel Lock
+OS\ Architecture=amd64
+Timestamp=2/25/20, 5\:00 PM
