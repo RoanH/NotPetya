@@ -635,10 +635,95 @@ The purpose of all this is not quite clear yet but we are sure to encounter some
 
 ## Back to Ordinal_1
 
+One of the first things to note after the function we just investigated is that it checks the 4th argument against `0xffffffff`. We also know that it is cast to a `HANDLE`. Furthermore we know that depending on the compiler a `HANDLE` is 32 or 64 bits and Ghidra tells us as general information that the application is using 32 bits Address Size. Meaning it is a `DWORD` and corresponds to `-1`. Some more MSDN searching reveals that this is the constant for `INVALID_HANDLE_VALUE`.
+
+Assuming that the handle is not invalid, then `FUN_10009590` is invoked with the first 3 `Ordinal_1` function arguments.
+
+### FUN_10009590
+
+```cpp
+undefined4 FUN_10009590(undefined4 param_1,undefined4 param_2,undefined4 param_3)
+
+{
+  SIZE_T dwSize;
+  undefined *puVar1;
+  SIZE_T dwSize_00;
+  undefined *_Dst;
+  int iVar2;
+  int iVar3;
+  BOOL BVar4;
+  void *_Src;
+  DWORD local_c;
+  SIZE_T local_8;
+  
+  _Src = DLL_handle;
+  if ((_DAT_1001f114 == 0) && (malware_dll_buffer != 0)) {
+    dwSize = *(SIZE_T *)(*(int *)((int)DLL_handle + 0x3c) + 0x50 + (int)DLL_handle);
+    local_8 = dwSize;
+    _Dst = (undefined *)VirtualAlloc((LPVOID)0x0,dwSize,0x1000,4);
+    if (_Dst != (undefined *)0x0) {
+      DAT_1001f13c = _Dst;
+      memcpy(_Dst,_Src,dwSize);
+      iVar3 = malware_dll_buffer;
+      _Src = (void *)(*(int *)(malware_dll_buffer + 0x3c) + malware_dll_buffer);
+      if (((_Src != (void *)0x0) && (*(uint *)((int)_Src + 0xa0) != 0)) &&
+         (*(int *)((int)_Src + 0xa4) != 0)) {
+        iVar2 = FUN_10009322(_Src,*(uint *)((int)_Src + 0xa0));
+        if ((((void *)(iVar2 + iVar3) != (void *)0x0) &&
+            (iVar3 = FUN_100091fa((void *)(iVar2 + iVar3),(int)_Dst), iVar3 != 0)) &&
+           (iVar3 = FUN_10009286(_Dst), iVar3 != 0)) {
+          (*(code *)(_Dst + (int)(FUN_100094a5 + -(int)DLL_handle)))
+                    (param_1,param_2,param_3,0xffffffff);
+        }
+      }
+      dwSize_00 = local_8;
+      BVar4 = VirtualProtect(_Dst,local_8,4,&local_c);
+      puVar1 = _Dst;
+      dwSize = dwSize_00;
+      if (BVar4 != 0) {
+        while (dwSize != 0) {
+          *puVar1 = 0;
+          puVar1 = puVar1 + 1;
+          dwSize = dwSize - 1;
+        }
+        VirtualFree(_Dst,dwSize_00,0x4000);
+      }
+    }
+  }
+  return 0;
+}
+```
+
+The first thing we notice is that all function arguments are `undefined4` this is strange however since we know the types from `Ordinal_1` they are `uint`, `HANDLE` and `LPCWSTR` so lets change this as it will most likely clean up the decompilation result a fair bit. Which turned out to not be the case. Therefore instead lets just try to go step by step and hopefully the 4 nested functions can provide more clarity.
+
+The first thing to note is that the subroutine requires some global called `_DAT_1001f114` to be `0` and the malware DLL to be loaded in memory.
+
+The first thing we see inside the `if` statement is a mess of pointer arithmetic:
+
+```cpp
+dwSize = *(SIZE_T *)(*(int *)((int)DLL_handle + 0x3c) + 0x50 + (int)DLL_handle);
+```
+
+Looking at the raw instructions here seems to make a little bit more sense:
+
+```
+100095af a1 20 f1        MOV        EAX,[DLL_handle]                                 = ??
+         01 10
+100095b4 8b 50 3c        MOV        EDX,dword ptr [EAX + 0x3c]
+100095b7 53              PUSH       EBX
+100095b8 56              PUSH       ESI
+100095b9 8b 74 02 50     MOV        ESI,dword ptr [EDX + EAX*0x1 + 0x50]
+```
+
+However the purpose remains unclear. Especially the `DLL_handle` being in there twice is odd. So instead we look at the following [VirtualAlloc](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc) call in the hope that it can make this make sense. 
+
+The call allocates `dwSize` of memory in the virtual address space of the calling process. The `fwAllocationType` passed is `0x1000` which maps to the constant `MEM_COMMIT`. The `flProtect` argument is `4` which maps to `PAGE_READWRITE`. Returned is a `LPVOID` pointer to the base address of the reserved memory.
+
+If this pointer is not a `NULL` pointer then we see that it is assigned to a global which we can just rename to `allocated_memory` for right now and add a comment.
+
+Next we see a memory section from the `dll_malware_buffer` being copied into the just allocated virtual memory. It seems as if we are trying to load something from the DLL at a specific offset. The [memcpy](http://www.cplusplus.com/reference/cstring/memcpy/) call also partially explains the casts we've been seeing as this function takes `(void*)` as it's arguments. It's worth noting that the difference between `_Src` and `_Dst` is `0x50` however `_Src` points to the current process while `_Dst` points to the in memory malware copy.
 
 
-
-One of the first things to note in the function is that it checks the 4th argument against `0xffffffff`. We also know that it is cast to a `HANDLE`. Further more we know that depending on the compiler a `HANDLE` is 32 or 64 bits and Ghidra tells us as general information that the application is using 32 bits Address Size. Meaning it is a `DWORD` and corresponds to `-1`. Some more MSDN searching reveals that this is the constant for `INVALID_HANDLE_VALUE`.
 
 
 
