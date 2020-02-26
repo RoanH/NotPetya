@@ -525,7 +525,7 @@ Next we see the return value of the `GetModuleFileNameW` call being compared to 
 
 ### FUN_10008acf
 
-```
+```cpp
 undefined4 FUN_10008acf(void){
   HANDLE hFile;
   DWORD nNumberOfBytesToRead;
@@ -588,7 +588,7 @@ We can now conclude that this function simply copies the malware to memory, mean
 
 We have now investigated all the functions called by this function giving us a clear view of what this function is doing:
 
-```
+```cpp
 void setup_privileges_antivirus_malware_copy(void)
 
 {
