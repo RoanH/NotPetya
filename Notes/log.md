@@ -589,9 +589,7 @@ We can now conclude that this function simply copies the malware to memory, mean
 We have now investigated all the functions called by this function giving us a clear view of what this function is doing:
 
 ```cpp
-void setup_privileges_antivirus_malware_copy(void)
-
-{
+void setup_privileges_antivirus_malware_copy(void){
   BOOL BVar1;
   DWORD DVar2;
   uint uVar3;
