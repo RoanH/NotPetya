@@ -454,9 +454,7 @@ Each of these modify the return value. The return value is initially set to `0xf
 This means the function returns a `uint` of all 1's and potentially two bits set to 0 denoting active anti virus software. From this function it is unclear why Kaspersky is treated differently from Norton and Symantec. However we have enough information to rename this function and go up one level. Our final decompilation result for the function ended up as:
 
 ```cpp
-uint detect_anti_virus(void)
-
-{
+uint detect_anti_virus(void){
   byte *pbVar1;
   short sVar2;
   HANDLE handle_snapshot;
