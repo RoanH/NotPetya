@@ -224,6 +224,8 @@ LAB_1000811b:
 
 We skip the variable declarations for now and instead look at `FUN_10007cc0`. 
 
+### FUN_10007cc0
+
 ```cpp
 void FUN_10007cc0(void){
   BOOL BVar1;
@@ -257,6 +259,8 @@ void FUN_10007cc0(void){
 This function checks some datavalue `_DAT_1001f114` against being `0`. After that it calls `GetTickCount()` which from [MSDN](https://docs.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-gettickcount) turns out to return the number of millis since the system was started. Meaning we can rename the data variable that stores it.
 
 Next we see 3 privilege related function calls. The result of which seems to be stored in some global variable. However, lets first look at the fun `FUN_100081ba` function before making assumptions.
+
+### FUN_100081ba
 
 ```cpp
 BOOL FUN_100081ba(LPCWSTR param_1){
@@ -311,6 +315,8 @@ If this operation succeeds the function returns `1 (true)` and otherwise `0 (fal
 Going back to `FUN_10007cc0` we then see that we try to grant the process the `SeShutdownPrivilege`, `SeDebugPrivilege` and `SeTcbPrivilege`. The bitwise combination is then stored in the `DAT_1001f144` global with the priviledes having the values `1`, `2` and `4` (same order as before). This also means we can rename the global.
 
 Next follows yet another function call `FUN_10008677`.
+
+### FUN_10008677
 
 ```cpp
 uint FUN_10008677(void){
@@ -515,9 +521,9 @@ Back in `FUN_10007cc0` we can now rename the global storing the result of the an
 
 The last part of the `FUN_10007cc0` function executes the WINAPI call [GetModuleFileNameW](https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamew). This call simply gets the fully qualified path for the passed module handle. Due to our renaming we immediately see that the handle passed is that of the malware DLL. The other two arguments specify a target location to store the fully qualified path and the size of the buffer. This means we can rename the global to something more descriptive.
 
+Next we see the return value of the `GetModuleFileNameW` call being compared to `0`. From the MSDN documentation we know that a return value of `0` means an error occurred. Meaning the function in the `if` is only executed when there was no error so lets investigate this function next.
 
-
-
+### FUN_10008acf
 
 
 
