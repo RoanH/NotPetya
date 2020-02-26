@@ -525,9 +525,48 @@ Next we see the return value of the `GetModuleFileNameW` call being compared to 
 
 ### FUN_10008acf
 
+undefined4 FUN_10008acf(void){
+  HANDLE hFile;
+  DWORD nNumberOfBytesToRead;
+  HANDLE hHeap;
+  LPVOID lpBuffer;
+  BOOL BVar1;
+  DWORD dwFlags;
+  DWORD dwBytes;
+  undefined4 local_10;
+  DWORD local_8;
+  
+  local_10 = 0;
+  hFile = CreateFileW(&dll_fully_qualified_path,0x80000000,1,(LPSECURITY_ATTRIBUTES)0x0,3,0,
+                      (HANDLE)0x0);
+  if (hFile != (HANDLE)0xffffffff) {
+    nNumberOfBytesToRead = GetFileSize(hFile,(LPDWORD)0x0);
+    if (nNumberOfBytesToRead != 0) {
+      dwFlags = 0;
+      dwBytes = nNumberOfBytesToRead;
+      hHeap = GetProcessHeap();
+      lpBuffer = HeapAlloc(hHeap,dwFlags,dwBytes);
+      if (lpBuffer != (LPVOID)0x0) {
+        local_8 = 0;
+        BVar1 = ReadFile(hFile,lpBuffer,nNumberOfBytesToRead,&local_8,(LPOVERLAPPED)0x0);
+        if ((BVar1 == 0) && (local_8 == nNumberOfBytesToRead)) {
+          nNumberOfBytesToRead = 0;
+          hHeap = GetProcessHeap();
+          HeapFree(hHeap,nNumberOfBytesToRead,lpBuffer);
+        }
+        else {
+          local_10 = 1;
+          DAT_1001f0fc = lpBuffer;
+          DAT_1001f11c = nNumberOfBytesToRead;
+        }
+      }
+    }
+    CloseHandle(hFile);
+  }
+  return local_10;
+}
 
-
-
+One of the first things we notice is that the return type is undefined. And we recall that the return type went unused in the calling location. This means that we will probably have to figure out what exactly this type is for our decompilation to reveal more information.
 
 
 
