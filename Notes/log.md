@@ -576,15 +576,66 @@ As a side note we see that the function simply returns when the file read fails.
 
 If the file read succeeds then we see that we first invoke [GetFileSize](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfilesize) to get the length in bytes of the file. Assuming that this is not 0 we continue.
 
+Next we get the heap of the process by calling [GetProcessHeap](https://docs.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-getprocessheap). After this we perform a [heap allocation](https://docs.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapalloc). To do this we use the process heap handle just obtained, do not use any flags and allocate enough space to store the entire Malware DLL in it. Assuming this worked a point to the allocated space is returned. 
 
+After guarding against a `NULL` pointer a [ReadFile](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-readfile) call is issued which simply read the entire Malware DLL into the just allocated heap space, the number of bytes actually read is stored in `local_8`.
 
+Next there are two branches. If the read failed or did not read the expected number of bytes (the entire DLL) then the allocated space is freed an the function returns. If the the read succeeded then the return value `local_10` is set to `1`, the allocated buffer pointed copied to a global and the number of bytes of this buffer also stored in a global. So next we will rename these globals.
 
+We can now conclude that this function simply copies the malware to memory, meaning we can also rename the function to `copy_malware_dll_to_memory`. The return type is still undefined however seems to be some kind of boolean. Probably it being undefined won't cause any issues afterall.
 
+### Back to FUN_10007cc0 (setup)
 
+We have now investigated all the functions called by this function giving us a clear view of what this function is doing:
 
+```
+void setup_privileges_antivirus_malware_copy(void)
 
+{
+  BOOL BVar1;
+  DWORD DVar2;
+  uint uVar3;
+  
+                    /* Performs general setup:
+                       - sets system startup time
+                       - grants privileges
+                       - detects anti virus
+                       - copies malware to memory */
+  if (_DAT_1001f114 == 0) {
+    millis_since_system_start = GetTickCount();
+    BVar1 = grant_privilege(L"SeShutdownPrivilege");
+    uVar3 = (uint)(BVar1 != 0);
+    BVar1 = grant_privilege(L"SeDebugPrivilege");
+    if (BVar1 != 0) {
+      uVar3 = uVar3 | 2;
+    }
+    BVar1 = grant_privilege(L"SeTcbPrivilege");
+    if (BVar1 != 0) {
+      uVar3 = uVar3 | 4;
+    }
+    granted_privileges = uVar3;
+                    /* All 1's, bit 4 is 0 for Kaspersky and bit 3 is 0 for Norton/Symantec */
+    _detected_anti_virus = detect_anti_virus();
+                    /* Fully qualified path for the Malware DLL */
+    DVar2 = GetModuleFileNameW(DLL_handle,&dll_fully_qualified_path,0x30c);
+    if (DVar2 != 0) {
+      copy_malware_dll_to_memory();
+      return;
+    }
+  }
+  return;
+}
+```
 
+In summary this function performs some general setup by:
+- setting the system startup time
+- granting privileges
+- detecting anti virus
+- and copying the malware to memory
 
+The purpose of all this is not quite clear yet but we are sure to encounter some of the globals that were set later on.
+
+## Back to Ordinal_1
 
 
 
