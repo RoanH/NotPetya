@@ -313,9 +313,7 @@ Going back to `FUN_10007cc0` we then see that we try to grant the process the `S
 Next follows yet another function call `FUN_10008677`.
 
 ```cpp
-uint FUN_10008677(void)
-
-{
+uint FUN_10008677(void){
   byte *pbVar1;
   short sVar2;
   int iVar3;
@@ -515,7 +513,7 @@ uint detect_anti_virus(void){
 
 Back in `FUN_10007cc0` we can now rename the global storing the result of the anti virus detection. Most likely this will be relevant later on.
 
-
+The last part of the `FUN_10007cc0` function executes the WINAPI call [GetModuleFileNameW](https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamew). This call simply gets the fully qualified path for the passed module handle. Due to our renaming we immediately see that the handle passed is that of the malware DLL. The other two arguments specify a target location to store the fully qualified path and the size of the buffer. This means we can rename the global to something more descriptive.
 
 
 
