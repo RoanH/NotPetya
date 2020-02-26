@@ -525,6 +525,7 @@ Next we see the return value of the `GetModuleFileNameW` call being compared to 
 
 ### FUN_10008acf
 
+```
 undefined4 FUN_10008acf(void){
   HANDLE hFile;
   DWORD nNumberOfBytesToRead;
@@ -565,8 +566,15 @@ undefined4 FUN_10008acf(void){
   }
   return local_10;
 }
+```
 
 One of the first things we notice is that the return type is undefined. And we recall that the return type went unused in the calling location. This means that we will probably have to figure out what exactly this type is for our decompilation to reveal more information.
+
+The first thing we see happening in the function is a call to [CreateFileW](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew). The file path passed is the earlier resolved fully qualified path global for the Malware DLL. The desired access mode for the file is set to `0x80000000` which maps to the `GENERIC_READ` constant. The share mode is requested as `1` which maps to the `FILE_SHARE_READ` constants meaning the file can be read at the same time to multiple processes. The `LPSECURITY_ATTRIBUTES` are passed as `NULL` which makes sense because this argument is ignored for files that already exist. The `dwCreationDisposition` argument is passed as `3` which maps to `OPEN_EXISTING` which again makes sense. Next is the `dwFlagsAndAttributes` argument which is passed as `0` whgich basically makes the attributes of the existing file are used as is. The final `hTemplateFile` argument is passed as `NULL` which makes sense because this argument is ignored for existing files. After all this the returned value is an open handle to the passed file path.
+
+As a side note we see that the function simply returns when the file read fails.
+
+If the file read succeeds then we see that we first invoke [GetFileSize](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfilesize) to get the length in bytes of the file. Assuming that this is not 0 we continue.
 
 
 
