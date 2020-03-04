@@ -886,11 +886,18 @@ undefined4 FUN_10009590(uint param_1,HANDLE param_2,LPCWSTR param_3){
 }
 ```
 
+The main issue we're now left with is that the members of these objects got a bit lost. We can see them being accessed but we cannot really see their definition. Why this is the case is clear when we look at the data type definition. Turns out that most of the object data is of the `undefined` type.
 
+In any case the general structure is clear now. We see accesses to object members and fields accompanied by `null` checks. The most interesting part is then of course what happens if all of these `null` checks succeed. For the time being we'll make that assumption. We then arrive at the following line.
 
+```cpp
+(*(code *)(_Dst + (int)(FUN_100094a5 + -(int)DLL_handle)))(param_1,param_2,param_3,0xffffffff);
+```
 
+Earlier we took note of `FUN_100094a5` as this is the only internal reference to the `Ordinal_1` function. Although the decompiled syntax here is questionable at best, we can infer that this is most likely a function call. The way it is invoked is odd however as it seems to be 
+invoked on the copy made of the malware DLL that is in memory. There's probably a good reason for this or it's because the decompiler is having trouble.
 
-
+Either way this seems like a good point to take a closer look at `FUN_100094a5`. This function probably plays an important role in the general life cycle of the malware and the current function we're looking at it rather difficult to understand completely. So we might get some useful information by gathering information about the context its being used in first.
 
 
 
@@ -901,7 +908,7 @@ undefined4 FUN_10009590(uint param_1,HANDLE param_2,LPCWSTR param_3){
 
 memory:
 - `FUN_100094a5` - only internal reference to `Ordinal_1`
-
+- `FUN_10009590` - difficult to grasp but invokes `FUN_100094a5`
 
 
 
