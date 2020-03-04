@@ -899,6 +899,66 @@ invoked on the copy made of the malware DLL that is in memory. There's probably 
 
 Either way this seems like a good point to take a closer look at `FUN_100094a5`. This function probably plays an important role in the general life cycle of the malware and the current function we're looking at it rather difficult to understand completely. So we might get some useful information by gathering information about the context its being used in first.
 
+### FUN_100094a5
+
+```cpp
+void FUN_100094a5(uint param_1,HANDLE param_2,LPCWSTR param_3,HANDLE param_4){
+  HANDLE hFile;
+  HANDLE hHeap;
+  LPVOID lpBuffer;
+  BOOL BVar1;
+  DWORD dwFlags;
+  DWORD dwBytes;
+  DWORD local_8;
+  
+  _DAT_1001f114 = FreeLibrary(DLL_handle);
+  if (_DAT_1001f114 != 0) {
+    DLL_handle = allocated_memory;
+    hFile = CreateFileW(&dll_fully_qualified_path,0x80000000,1,(LPSECURITY_ATTRIBUTES)0x0,3,0,
+                        (HANDLE)0x0);
+    if (hFile != (HANDLE)0x0) {
+      local_8 = GetFileSize(hFile,(LPDWORD)0x0);
+      CloseHandle(hFile);
+      hFile = CreateFileW(&dll_fully_qualified_path,0x40000000,0,(LPSECURITY_ATTRIBUTES)0x0,2,0,
+                          (HANDLE)0x0);
+      if (hFile != (HANDLE)0x0) {
+        dwFlags = 8;
+        dwBytes = local_8;
+        hHeap = GetProcessHeap();
+        lpBuffer = HeapAlloc(hHeap,dwFlags,dwBytes);
+        if (lpBuffer != (LPVOID)0x0) {
+          WriteFile(hFile,lpBuffer,local_8,&local_8,(LPOVERLAPPED)0x0);
+          dwBytes = 0;
+          hHeap = GetProcessHeap();
+          HeapFree(hHeap,dwBytes,lpBuffer);
+        }
+        CloseHandle(hFile);
+      }
+    }
+    _DAT_1001f10c = DeleteFileW(&dll_fully_qualified_path);
+    BVar1 = FUN_10009367();
+    if (BVar1 != 0) {
+      Ordinal_1(param_1,param_2,param_3,param_4);
+    }
+    ExitProcess(0);
+  }
+  return;
+}
+```
+
+The first thing to recall when looking at this function is that we know that where we just came from invoked this function with the `INVALID_HANDLE` argument for `param_4`. Next we quickly check using Ghidra if there are any other references to this function. The answer to this is no. This is a bit odd as that would imply that `param_4` is always invalid.
+
+The first thing we see happening is that the original dll handle [is freed](https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-freelibrary). In theory as far as we know this means that the reference count to the malware dll will reach 0 meaning it will get unloaded. The result of this call is stored in a global so we can rename this.
+
+If this worked we see that the `DLL_handle` is then set to the in memory that was allocated in the function we came from. This makes appears to make it likely that the memory allocated and initilised then was actually a copy of the entire DLL address space. 
+
+Next we see a [CreateFileW](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew) being used to open the dll file. Access is requested as `0x80000000` which maps to `GENERIC_READ`. Besides that the file is shared, no security attributes are used, it indicates to open an existing file, no flags are used and a `NULL` `HANDLE` is passed. All in all this just gets a `HANDLE` to the DLL file.
+
+Assuming this actually worked the size of the file is gotten and stored in `local_8` so we can rename this. And then the handle to the original DLL is closed.
+
+Next we see that the DLL is read again. But this time with different arguments. Access is requested as `0x40000000` which maps to `GENERIC_WRITE` in addition the file is not sharable this time and it is indicated that the file should be `CREATE_ALWAYS`. This overwrites the DLL. The returned handle to the now writeable file is stored in `hFile`.
+
+If this returned handle is not `NULL`, then a few things happen.
 
 
 
@@ -906,7 +966,8 @@ Either way this seems like a good point to take a closer look at `FUN_100094a5`.
 
 
 
-memory:
+
+Memory:
 - `FUN_100094a5` - only internal reference to `Ordinal_1`
 - `FUN_10009590` - difficult to grasp but invokes `FUN_100094a5`
 
