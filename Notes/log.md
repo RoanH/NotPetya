@@ -723,6 +723,39 @@ If this pointer is not a `NULL` pointer then we see that it is assigned to a glo
 
 Next we see a memory section from the `dll_malware_buffer` being copied into the just allocated virtual memory. It seems as if we are trying to load something from the DLL at a specific offset. The [memcpy](http://www.cplusplus.com/reference/cstring/memcpy/) call also partially explains the casts we've been seeing as this function takes `(void*)` as it's arguments. It's worth noting that the difference between `_Src` and `_Dst` is `0x50` however `_Src` points to the current process while `_Dst` points to the in memory malware copy.
 
+The function otherwise still looks rather complicated. Just to get an idea of what we'll be dealing with later with we quickly look at the 3 nested functions `FUN_10009322`, `FUN_100091fa` and `FUN_10009286`. Interestingly we see that the first two have their calling conventian marked as `__thiscall`. Unexpectedly we also see that the first argument is a `void *this`. From this we learn that we are looking at C++ code.
+
+Now given that we've done our homework by watching [a series](https://www.youtube.com/watch?v=Q90uZS3taG0) on the reverse engineering of WannaCry. We realise that we shoul run OOAnalyzer to help us make more sense of the C++ code.
+
+Following the [OOAnalyzer installation guide](https://github.com/cmu-sei/pharos/blob/master/INSTALL.md). We start by pulling their docker image.
+
+```sh
+sudo docker pull seipharos/pharos
+```
+
+Next we start an interactive session and map the local folder with the malware dll to `/dir` in the container.
+
+```sh
+sudo docker run --rm -it -v `pwd`:/dir seipharos/pharos
+```
+
+Next inside the container we move to the `dir` folder.
+
+```sh
+cd dir
+```
+
+Using a quick directory listing we can then verify that our malware is indeed linked.
+
+```sh
+ls -l
+```
+
+And finally we run OOAnalyzer and store the result in a `.json` file.
+
+```sh
+ooanalyzer -j 027cc450ef5f8c5f653329641ec1fed91f694e0d229928963b30f6b0d7d3a745.json 027cc450ef5f8c5f653329641ec1fed91f694e0d229928963b30f6b0d7d3a745
+```
 
 
 

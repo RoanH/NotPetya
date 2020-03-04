@@ -1,0 +1,178 @@
+{
+    "Structures": [
+        {
+            "Name": "cls_10002ccf",
+            "DemangledName": "",
+            "Size": "2",
+            "Members": [
+                {
+                    "name": "mbr_0",
+                    "type": "word",
+                    "offset": "0",
+                    "count": "1"
+                }
+            ],
+            "Methods": [
+                {
+                    "ea": "10002ccf",
+                    "name": "meth_10002ccf",
+                    "demangled_name": "",
+                    "import": "no",
+                    "type": "meth"
+                }
+            ]
+        },
+        {
+            "Name": "cls_10002d82",
+            "DemangledName": "",
+            "Size": "2",
+            "Members": [
+                {
+                    "name": "mbr_0",
+                    "type": "word",
+                    "offset": "0",
+                    "count": "1"
+                }
+            ],
+            "Methods": [
+                {
+                    "ea": "10002d82",
+                    "name": "meth_10002d82",
+                    "demangled_name": "",
+                    "import": "no",
+                    "type": "meth"
+                }
+            ]
+        },
+        {
+            "Name": "cls_10006f91",
+            "DemangledName": "",
+            "Size": "2",
+            "Members": [
+                {
+                    "name": "mbr_0",
+                    "type": "word",
+                    "offset": "0",
+                    "count": "1"
+                }
+            ],
+            "Methods": [
+                {
+                    "ea": "10006f91",
+                    "name": "meth_10006f91",
+                    "demangled_name": "",
+                    "import": "no",
+                    "type": "meth"
+                }
+            ]
+        },
+        {
+            "Name": "cls_100091fa",
+            "DemangledName": "",
+            "Size": "10",
+            "Members": [
+                {
+                    "name": "mbr_0",
+                    "type": "dword",
+                    "offset": "0",
+                    "count": "1"
+                },
+                {
+                    "name": "mbr_4",
+                    "type": "dword",
+                    "offset": "4",
+                    "count": "1"
+                },
+                {
+                    "name": "mbr_8",
+                    "type": "word",
+                    "offset": "8",
+                    "count": "1"
+                }
+            ],
+            "Methods": [
+                {
+                    "ea": "100091fa",
+                    "name": "meth_100091fa",
+                    "demangled_name": "",
+                    "import": "no",
+                    "type": "meth"
+                }
+            ]
+        },
+        {
+            "Name": "cls_10009322",
+            "DemangledName": "",
+            "Size": "22",
+            "Members": [
+                {
+                    "name": "mbr_6",
+                    "type": "word",
+                    "offset": "6",
+                    "count": "1"
+                },
+                {
+                    "name": "mbr_14",
+                    "type": "word",
+                    "offset": "14",
+                    "count": "1"
+                }
+            ],
+            "Methods": [
+                {
+                    "ea": "10009322",
+                    "name": "meth_10009322",
+                    "demangled_name": "",
+                    "import": "no",
+                    "type": "meth"
+                }
+            ]
+        }
+    ],
+    "Usages": [
+        {
+            "Members": [
+                {
+                    "class": "cls_10002ccf",
+                    "ea": "10002cf1"
+                },
+                {
+                    "class": "cls_10002d82",
+                    "ea": "10002dbb"
+                },
+                {
+                    "class": "cls_10006f91",
+                    "ea": "10006fa3"
+                },
+                {
+                    "class": "cls_100091fa",
+                    "ea": "100091ff"
+                },
+                {
+                    "class": "cls_100091fa",
+                    "ea": "1000921f"
+                },
+                {
+                    "class": "cls_100091fa",
+                    "ea": "10009260"
+                },
+                {
+                    "class": "cls_100091fa",
+                    "ea": "10009273"
+                },
+                {
+                    "class": "cls_100091fa",
+                    "ea": "1000922f"
+                },
+                {
+                    "class": "cls_10009322",
+                    "ea": "1000932d"
+                },
+                {
+                    "class": "cls_10009322",
+                    "ea": "10009325"
+                }
+            ]
+        }
+    ]
+}
