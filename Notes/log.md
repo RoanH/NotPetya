@@ -966,7 +966,11 @@ Assuming the buffer was succesfully created and not a `NULL` pointer. Then a [Wr
 
 After this is done we see some resource cleanup like the buffer being freed and the file handle closed.
 
-Next we see a call being made to [...
+Next we see a call being made to [DeleteFileW](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-deletefilew), unsurprisingly this deletes the malware DLL file. The success state of this operation is stored in the global `_DAT_1001f10c` so we can rename this global and add a comment.
+
+The next thing we see is a call to `FUN_10009367`. So this is where we will go next. The result of this function determines whether `Ordinal_1` is invoked so it ought to be important.
+
+### FUN_10009367
 
 
 
