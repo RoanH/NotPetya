@@ -725,7 +725,7 @@ Next we see a memory section from the `dll_malware_buffer` being copied into the
 
 The function otherwise still looks rather complicated. Just to get an idea of what we'll be dealing with later with we quickly look at the 3 nested functions `FUN_10009322`, `FUN_100091fa` and `FUN_10009286`. Interestingly we see that the first two have their calling conventian marked as `__thiscall`. Unexpectedly we also see that the first argument is a `void *this`. From this we learn that we are looking at C++ code.
 
-Now given that we've done our homework by watching [a series](https://www.youtube.com/watch?v=Q90uZS3taG0) on the reverse engineering of WannaCry. We realise that we shoul run OOAnalyzer to help us make more sense of the C++ code.
+Now given that we've done our homework by watching [a series](https://www.youtube.com/watch?v=Q90uZS3taG0) on the reverse engineering of WannaCry. We realise that we should run OOAnalyzer to help us make more sense of the C++ code.
 
 Following the [OOAnalyzer installation guide](https://github.com/cmu-sei/pharos/blob/master/INSTALL.md). We start by pulling their docker image.
 
@@ -756,6 +756,90 @@ And finally we run OOAnalyzer and store the result in a `.json` file.
 ```sh
 ooanalyzer -j 027cc450ef5f8c5f653329641ec1fed91f694e0d229928963b30f6b0d7d3a745.json 027cc450ef5f8c5f653329641ec1fed91f694e0d229928963b30f6b0d7d3a745
 ```
+
+The next step is waiting a fair bit. After this we have ended up with a `.json` file the full analysis output being as follows.
+
+```
+OPTI[INFO ]: Analyzing executable: 027cc450ef5f8c5f653329641ec1fed91f694e0d229928963b30f6b0d7d3a745
+OPTI[INFO ]: OOAnalyzer version 1.0.
+OPTI[INFO ]: ROSE stock partitioning took 34.4457 seconds.
+OPTI[INFO ]: Partitioned 47977 bytes, 16653 instructions, 4399 basic blocks, 1 data blocks and 341 functions.
+OPTI[INFO ]: Pharos function partitioning took 34.9167 seconds.
+OPTI[INFO ]: Partitioned 48640 bytes, 16787 instructions, 4437 basic blocks, 13 data blocks and 343 functions.
+APID[WARN ]: API database has no data for DLL: DHCPSAPI
+APID[WARN ]: API database has no data for DLL: IPHLPAPI
+APID[WARN ]: API database could not find function WNetOpenEnumW in MPR
+APID[WARN ]: API database could not find function WNetEnumResourceW in MPR
+APID[WARN ]: API database could not find function WNetCancelConnection2W in MPR
+APID[WARN ]: API database could not find function WNetAddConnection2W in MPR
+APID[WARN ]: API database could not find function WNetCloseEnum in MPR
+APID[WARN ]: API database has no data for DLL: NETAPI32
+APID[WARN ]: API database could not find function wsprintfA in USER32
+APID[WARN ]: API database could not find function wsprintfW in USER32
+FSEM[ERROR]: Function 0x1000A5CC relative memory exceeded
+FSEM[ERROR]: Function analysis convergence failed for: 0x1000A5CC
+FSEM[ERROR]: Function 0x10007C10 has no out edges.
+FSEM[ERROR]: Function 0x10005A7E relative memory exceeded
+FSEM[ERROR]: Function analysis convergence failed for: 0x10005A7E
+FSEM[ERROR]: Function 0x10007DEB has no out edges.
+OOAN[ERROR]: No new() methods were found.  Heap objects may not be detected.
+OOAN[ERROR]: No delete() methods were found.  Object analysis may be impaired.
+OPTI[INFO ]: Function analysis complete, analyzed 178 functions in 81.6441 seconds.
+OPTI[INFO ]: OOAnalyzer analysis complete, found: 5 classes, 5 methods, 0 virtual calls, and 10 usage instructions.
+OPTI[INFO ]: Successfully exported to JSON file '027cc450ef5f8c5f653329641ec1fed91f694e0d229928963b30f6b0d7d3a745.json'.
+OPTI[INFO ]: OOAnalyzer analysis complete.
+```
+
+Next we have to add the OOAnalyzer plugin to Ghidra so we can import our result. For this we first need to compile this plugin however for which [we follow the instructions](https://github.com/cmu-sei/pharos/tree/master/tools/ooanalyzer/ghidra/OOAnalyzerPlugin).
+
+```sh
+git clone https://github.com/cmu-sei/pharos.git
+```
+
+Next we change directory to the folder containing the plugin source libraries. And add the only dependency of OOAnalyzer, GSON 2.8.5.
+
+```sh
+cd pharos/tools/ooanalyzer/ghidra/OOAnalyzerPlugin/lib/
+wget https://repo1.maven.org/maven2/com/google/code/gson/gson/2.8.5/gson-2.8.5.jar
+```
+
+Next we go up one directory so we cna build the plugin. The first thing we notice is that OOAnalyzer does not use the gradle wrapper, this means that we'll have to install gradle first.
+
+```sh
+cd ...
+sudo apt-get install gradle
+```
+
+Given that there are no further compile details given we just run `gradle`. This gives us an error.
+
+```
+> GHIDRA_INSTALL_DIR is not defined!
+```
+
+So we do the next sensible thing which is actually checking the content of `build.gradle` where we immediately see some details about this exact error. So we try again.
+
+```sh
+gradle -PGHIDRA_INSTALL_DIR=/home/roan/Downloads/ghidra_9.1.2_PUBLIC_20200212/ghidra_9.1.2_PUBLIC
+```
+
+Next up we wait a bit. After a while we get back our plugin.
+
+```
+Created ghidra_9.1.2_PUBLIC_20200304_OOAnalyzerPlugin.zip in /home/roan/Downloads/2IC80/Project/ooanalyzer/pharos/tools/ooanalyzer/ghidra/OOAnalyzerPlugin/dist
+```
+
+
+
+
+
+
+
+
+
+
+
+Next we import the output in Ghidra by going to the `CERT` menu.
+
 
 
 
