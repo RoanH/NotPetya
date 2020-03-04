@@ -828,17 +828,69 @@ Next up we wait a bit. After a while we get back our plugin.
 Created ghidra_9.1.2_PUBLIC_20200304_OOAnalyzerPlugin.zip in /home/roan/Downloads/2IC80/Project/ooanalyzer/pharos/tools/ooanalyzer/ghidra/OOAnalyzerPlugin/dist
 ```
 
+Now we can import the plugin in Ghidra. We do so by going to File > Import Plugins and adding the plugin we just built. We get a message that we have to restart Ghidra.
+
+Next we import the output generated json output from before in Ghidra by going to the new `CERT` menu. As expected this cleans up our C++ classes a lot. It also becomes clear that the function we were looking at is in fact simply invoking methods on a C++ style object.
+
+```cpp
+undefined4 FUN_10009590(uint param_1,HANDLE param_2,LPCWSTR param_3){
+  SIZE_T dwSize;
+  undefined *puVar1;
+  void *_Src;
+  SIZE_T dwSize_00;
+  undefined *_Dst;
+  int iVar2;
+  int iVar3;
+  BOOL BVar4;
+  cls_10009322 *this;
+  DWORD local_c;
+  SIZE_T local_8;
+  
+  _Src = DLL_handle;
+  if ((_DAT_1001f114 == 0) && (malware_dll_buffer != 0)) {
+    dwSize = *(SIZE_T *)(*(int *)((int)DLL_handle + 0x3c) + 0x50 + (int)DLL_handle);
+    local_8 = dwSize;
+    _Dst = (undefined *)VirtualAlloc((LPVOID)0x0,dwSize,0x1000,4);
+    if (_Dst != (undefined *)0x0) {
+      allocated_memory = _Dst;
+                    /* Allocated memory in the virtual process address space. The exact size is a
+                       bit unclear but it is read-write memory. */
+      memcpy(_Dst,_Src,dwSize);
+      iVar3 = malware_dll_buffer;
+      this = (cls_10009322 *)(*(int *)(malware_dll_buffer + 0x3c) + malware_dll_buffer);
+      if (((this != (cls_10009322 *)0x0) && (*(uint *)&this[6].field_0x10 != 0)) &&
+         (this[6].mbr_14 != 0)) {
+        iVar2 = meth_10009322(this,*(uint *)&this[6].field_0x10);
+        if ((((cls_100091fa *)(iVar2 + iVar3) != (cls_100091fa *)0x0) &&
+            (iVar3 = meth_100091fa((cls_100091fa *)(iVar2 + iVar3),(int)_Dst), iVar3 != 0)) &&
+           (iVar3 = FUN_10009286(_Dst), iVar3 != 0)) {
+          (*(code *)(_Dst + (int)(FUN_100094a5 + -(int)DLL_handle)))
+                    (param_1,param_2,param_3,0xffffffff);
+        }
+      }
+      dwSize_00 = local_8;
+      BVar4 = VirtualProtect(_Dst,local_8,4,&local_c);
+      puVar1 = _Dst;
+      dwSize = dwSize_00;
+      if (BVar4 != 0) {
+        while (dwSize != 0) {
+          *puVar1 = 0;
+          puVar1 = puVar1 + 1;
+          dwSize = dwSize - 1;
+        }
+        VirtualFree(_Dst,dwSize_00,0x4000);
+      }
+    }
+  }
+  return 0;
+}
+```
 
 
 
 
 
 
-
-
-
-
-Next we import the output in Ghidra by going to the `CERT` menu.
 
 
 
