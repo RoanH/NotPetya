@@ -956,11 +956,17 @@ Next we see a [CreateFileW](https://docs.microsoft.com/en-us/windows/win32/api/f
 
 Assuming this actually worked the size of the file is gotten and stored in `local_8` so we can rename this. And then the handle to the original DLL is closed.
 
-Next we see that the DLL is read again. But this time with different arguments. Access is requested as `0x40000000` which maps to `GENERIC_WRITE` in addition the file is not sharable this time and it is indicated that the file should be `CREATE_ALWAYS`. This overwrites the DLL. The returned handle to the now writeable file is stored in `hFile`.
+Next we see that the DLL is read again. But this time with different arguments. Access is requested as `0x40000000` which maps to `GENERIC_WRITE` in addition the file is not sharable this time and it is indicated that the file should be `CREATE_ALWAYS`. This allows overwritting the DLL. The returned handle to the now writeable file is stored in `hFile`.
 
 If this returned handle is not `NULL`, then a few things happen.
 
+First we see a new heap allocation being made that is large enough to store the original DLL. The flags are set to 8 which simply maps to `HEAP_ZERO_MEMORY` meaning the memory is initialised as all 0's.
 
+Assuming the buffer was succesfully created and not a `NULL` pointer. Then a [WriteFile](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-writefile) call is made. The arguments are rather simple and all that happens is that buffer that was just allocated is written to the DLL file. This effectively wipes the file since the buffer is all 0's.
+
+After this is done we see some resource cleanup like the buffer being freed and the file handle closed.
+
+Next we see a call being made to [...
 
 
 
