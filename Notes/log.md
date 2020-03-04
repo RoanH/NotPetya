@@ -972,6 +972,83 @@ The next thing we see is a call to `FUN_10009367`. So this is where we will go n
 
 ### FUN_10009367
 
+```cpp
+BOOL FUN_10009367(void){
+  LPCSTR pCVar1;
+  int iVar2;
+  BOOL BVar3;
+  FARPROC pFVar4;
+  int *piVar5;
+  FARPROC *ppFVar6;
+  LPCSTR *ppCVar7;
+  LPCSTR lpProcName;
+  DWORD local_14;
+  int local_10;
+  HMODULE local_c;
+  BOOL local_8;
+  
+  local_8 = 0;
+  iVar2 = *(int *)(DLL_handle + 0x3c) + DLL_handle;
+  piVar5 = (int *)(*(int *)(iVar2 + 0x80) + DLL_handle);
+  if (piVar5 != (int *)0x0) {
+    local_c = (HMODULE)0x0;
+    local_10 = (uint)*(ushort *)(iVar2 + 0x14) + 0x18 + iVar2;
+    if (*(ushort *)(iVar2 + 6) != 0) {
+      local_14 = *(uint *)(iVar2 + 0xd8);
+      do {
+        if ((*(uint *)(local_10 + 0xc) <= local_14) &&
+           (local_14 < *(int *)(local_10 + 8) + *(uint *)(local_10 + 0xc))) break;
+        local_c = (HMODULE)((int)&local_c->unused + 1);
+        local_10 = local_10 + 0x28;
+      } while ((int)local_c < (int)(uint)*(ushort *)(iVar2 + 6));
+    }
+    iVar2 = local_10;
+    BVar3 = VirtualProtect((LPVOID)(*(int *)(local_10 + 0xc) + DLL_handle),*(SIZE_T *)(local_10 + 8)
+                           ,4,&local_14);
+    if (BVar3 != 0) {
+      local_8 = 1;
+      if (*piVar5 != 0) {
+        do {
+          if (local_8 != 1) break;
+          local_c = LoadLibraryA((LPCSTR)(piVar5[3] + DLL_handle));
+          if (local_c == (HMODULE)0x0) {
+            local_8 = 0;
+          }
+          else {
+            ppFVar6 = (FARPROC *)(piVar5[4] + DLL_handle);
+            ppCVar7 = (LPCSTR *)(*piVar5 + DLL_handle);
+            while ((pCVar1 = *ppCVar7, iVar2 = local_10, pCVar1 != (LPCSTR)0x0 && (local_8 == 1))) {
+              lpProcName = (LPCSTR)((uint)pCVar1 & 0x7fffffff);
+              if (lpProcName == pCVar1) {
+                lpProcName = lpProcName + DLL_handle + 2;
+              }
+              pFVar4 = GetProcAddress(local_c,lpProcName);
+              *ppFVar6 = pFVar4;
+              if (pFVar4 == (FARPROC)0x0) {
+                local_8 = 0;
+              }
+              ppFVar6 = ppFVar6 + 1;
+              ppCVar7 = ppCVar7 + 1;
+            }
+          }
+          piVar5 = piVar5 + 5;
+        } while (*piVar5 != 0);
+        if (local_8 == 0) {
+          return 0;
+        }
+      }
+      local_8 = VirtualProtect((LPVOID)(*(int *)(iVar2 + 0xc) + DLL_handle),*(SIZE_T *)(iVar2 + 8),
+                               local_14,&local_14);
+    }
+  }
+  return local_8;
+}
+```
+
+The first thing to note is tha this function is actually surprisingly long and complex. In fact, it is fairly similar to `FUN_10009590` in the sense that we see similar `DLL_handle` offset pointers. On the bright side however, nothing is undefined here. Most likely that will make this all a bit easier to grasp.
+
+
+
 
 
 
