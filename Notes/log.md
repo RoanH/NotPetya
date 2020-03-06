@@ -1047,12 +1047,17 @@ BOOL FUN_10009367(void){
 
 The first thing to note is that this function is actually surprisingly long and complex. In fact, it is fairly similar to `FUN_10009590` in the sense that we see similar `DLL_handle` offset pointers. On the bright side however, nothing is undefined here. Most likely that will make this all a bit easier to grasp.
 
-Turns out that this function is based all around a double offset of the `DLL_handle` to specfic memory offets. We are still rather unsure as to what a double offset of the `DLL_handle` means. The main take away from this function is however that it loads a Library and an exported function from this library.
+Turns out that this function is based all around a double offset of the `DLL_handle` to specfic memory offets. We are still rather unsure as to what a double offset of the `DLL_handle` means. The main take away from this function is however that it load Libraries and exported functions from these libraries.
 
+In addition some memory ranges get protected in `PAGE_READWRITE` mode. For now it's rather difficult to really understandt his function. The important part is that it returns `1` on success and `0` on failure of something. For now we will also rename the function to `load_libraries` as this seems most appropriate.
 
+By extension we know that `Ordinal_1` is only invoked when this function did not fail. Most likely this means that all prerequiresite libraries are loaded.
 
-TODO
+Finally we see that either after library loading fails or after `Ordinal_1` returns the process is terminated using an [ExitProcess](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-exitprocess) call.
 
+Next we return to `Ordinal_1` from the second entry point.
+
+### Second entry to Ordinal_1
 
 Back in `Ordinal_1` we see a call being made to `Ordinal_115`. We see that this is an external function exported by `WS2_32.dll` which is not currently present. So we do something very sensible and copy this file from a Windows PC from the `C:\\Windows\System32` directory.
 
