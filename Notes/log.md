@@ -1071,17 +1071,14 @@ Back in `Ordinal_1` we see a call being made to `Ordinal_115`. We see that this 
         1000d29b 00              ??         00h
 ```
 
-After anaylzing the `Ordinal_115` function in `WS2_32.dll` we can update its signature in our NotPetya project. This reveals that the `WSAStartup` function is called. The minimum version required is `0x202` and the Windows Sockets implementation detaisl are stored in `DAT_1001f768`. So we can rename this global. This only initialises the Winsock DLL so it can be used.
+After anaylzing the `Ordinal_115` function in `WS2_32.dll` we can update its signature in our NotPetya project. This reveals that the [WSAStartup](https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-wsastartup) function is called. The minimum version required is `0x202` and the Windows Sockets implementation details are stored in `DAT_1001f768`. So we can rename this global. This only initialises the Winsock DLL so it can be used.
 
 Next we see two calls being made to `FUN_10007091` so lets analyse this function next.
 
 ### FUN_10007091
 
 ```cpp
-LPCRITICAL_SECTION
-FUN_10007091(LONG param_1,ULONG_PTR param_2,PRTL_CRITICAL_SECTION_DEBUG param_3,int param_4)
-
-{
+LPCRITICAL_SECTION FUN_10007091(LONG param_1,ULONG_PTR param_2,PRTL_CRITICAL_SECTION_DEBUG param_3,int param_4){
   HANDLE hHeap;
   PRTL_CRITICAL_SECTION_DEBUG p_Var1;
   LPCRITICAL_SECTION lpCriticalSection;
