@@ -1113,11 +1113,80 @@ FUN_10007091(LONG param_1,ULONG_PTR param_2,PRTL_CRITICAL_SECTION_DEBUG param_3,
 }
 ```
 
+In this function we see a space being allocated for a critical section. Next we look at the [MSDN documentation for InitializeCriticalSection](https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-initializecriticalsection).  
+
+This function just appears to initialise some `LPCRITICAL_SECION` objects and to do so uses the passed parameters. One interesting part is the nested `FUN_10007003` function near the end. Which is only called then allocating space for the DebugInfo `p_Var1` fails. 
+
+```cpp
+void FUN_10007003(void){
+  int **ppiVar1;
+  int *piVar2;
+  HANDLE hHeap;
+  LPVOID unaff_ESI;
+  DWORD dwFlags;
+  LPVOID lpMem;
+  uint local_8;
+  
+  if (unaff_ESI != (LPVOID)0x0) {
+    if (*(int *)((int)unaff_ESI + 0x18) != 0) {
+      local_8 = 0;
+      if (*(int *)((int)unaff_ESI + 0x24) != 0) {
+        do {
+          ppiVar1 = (int **)(*(int *)((int)unaff_ESI + 0x18) + local_8 * 4);
+          if (*ppiVar1 != (int *)0x0) {
+            piVar2 = *ppiVar1;
+            if (*piVar2 != 0) {
+              if (*(code **)((int)unaff_ESI + 0x30) != (code *)0x0) {
+                (**(code **)((int)unaff_ESI + 0x30))(*piVar2);
+              }
+              lpMem = **(LPVOID **)(*(int *)((int)unaff_ESI + 0x18) + local_8 * 4);
+              dwFlags = 0;
+              hHeap = GetProcessHeap();
+              HeapFree(hHeap,dwFlags,lpMem);
+            }
+            lpMem = *(LPVOID *)(*(int *)((int)unaff_ESI + 0x18) + local_8 * 4);
+            dwFlags = 0;
+            hHeap = GetProcessHeap();
+            HeapFree(hHeap,dwFlags,lpMem);
+          }
+          local_8 = local_8 + 1;
+        } while (local_8 < *(uint *)((int)unaff_ESI + 0x24));
+      }
+      lpMem = *(LPVOID *)((int)unaff_ESI + 0x18);
+      dwFlags = 0;
+      hHeap = GetProcessHeap();
+      HeapFree(hHeap,dwFlags,lpMem);
+    }
+    dwFlags = 0;
+    hHeap = GetProcessHeap();
+    HeapFree(hHeap,dwFlags,unaff_ESI);
+  }
+  return;
+}
+```
+
+This function has no return value, no arguments and makes no references to any globals. Instead it simply tiers to free as much heap memory as possible it seems. For now we will just assume it is not that important. The only thing worth noting still is that the `ESI` register being used as offset to free data is the same register that was used in the calling function to store the critical section object. It could be that this is simply cleanup.
+
+It also seems fair to rename `FUN_10007091` to `configure_critical_sections` if more details are required later we can find them here but everything seems fairly standard. In `Ordinal_1` we can then also rename a few things to get the following.
+
+```cpp
+critical_section_no_extra_debug = configure_critical_section(0x24,(ULONG_PTR)spincount_function,(PRTL_CRITICAL_SECTION_DEBUG)0x0,0xffff);
+critical_section_with_extra_debug = configure_critical_section(8,(ULONG_PTR)spincount_function_for_pointers,(PRTL_CRITICAL_SECTION_DEBUG)critical_section_debug_info_function,0xff);
+                    /* Is a null pointer */
+null_critical_section = (LPCRITICAL_SECTION)0x0;
+```
+
+These global are now easy to recognize when encountered later and the function at least have descriptive names.
+
+We now continue with `Ordinal_1`.
+
+### Back to Ordinal_1 again
 
 
+TODO
 
 
-
+ 
 
 
 
