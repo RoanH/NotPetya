@@ -1047,6 +1047,74 @@ BOOL FUN_10009367(void){
 
 The first thing to note is that this function is actually surprisingly long and complex. In fact, it is fairly similar to `FUN_10009590` in the sense that we see similar `DLL_handle` offset pointers. On the bright side however, nothing is undefined here. Most likely that will make this all a bit easier to grasp.
 
+Turns out that this function is based all around a double offset of the `DLL_handle` to specfic memory offets. We are still rather unsure as to what a double offset of the `DLL_handle` means. The main take away from this function is however that it loads a Library and an exported function from this library.
+
+
+
+TODO
+
+
+Back in `Ordinal_1` we see a call being made to `Ordinal_115`. We see that this is an external function exported by `WS2_32.dll` which is not currently present. So we do something very sensible and copy this file from a Windows PC from the `C:\\Windows\System32` directory.
+
+```
+                             **************************************************************
+                             *                POINTER to EXTERNAL FUNCTION                *
+                             **************************************************************
+                             undefined Ordinal_115()
+             undefined         AL:1           <RETURN>
+                             115  Ordinal_115  <<not bound>>
+                             PTR_Ordinal_115_1000d294                        XREF[1]:     Ordinal_1:10007e1e  
+        1000d294 73 00 00 80     addr       WS2_32.DLL::Ordinal_115
+        1000d298 00              ??         00h
+        1000d299 00              ??         00h
+        1000d29a 00              ??         00h
+        1000d29b 00              ??         00h
+```
+
+After anaylzing the `Ordinal_115` function in `WS2_32.dll` we can update its signature in our NotPetya project. This reveals that the `WSAStartup` function is called. The minimum version required is `0x202` and the Windows Sockets implementation detaisl are stored in `DAT_1001f768`. So we can rename this global. This only initialises the Winsock DLL so it can be used.
+
+Next we see two calls being made to `FUN_10007091` so lets analyse this function next.
+
+### FUN_10007091
+
+```cpp
+LPCRITICAL_SECTION
+FUN_10007091(LONG param_1,ULONG_PTR param_2,PRTL_CRITICAL_SECTION_DEBUG param_3,int param_4)
+
+{
+  HANDLE hHeap;
+  PRTL_CRITICAL_SECTION_DEBUG p_Var1;
+  LPCRITICAL_SECTION lpCriticalSection;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  
+  dwBytes = 0x34;
+  dwFlags = 8;
+  hHeap = GetProcessHeap();
+  lpCriticalSection = (LPCRITICAL_SECTION)HeapAlloc(hHeap,dwFlags,dwBytes);
+  if (lpCriticalSection != (LPCRITICAL_SECTION)0x0) {
+    InitializeCriticalSection(lpCriticalSection);
+    lpCriticalSection[1].RecursionCount = param_4;
+    lpCriticalSection[1].LockCount = param_1;
+    dwBytes = param_4 << 2;
+    lpCriticalSection[1].SpinCount = param_2;
+    dwFlags = 8;
+    lpCriticalSection[1].OwningThread = (HANDLE)0x0;
+    lpCriticalSection[2].DebugInfo = param_3;
+    hHeap = GetProcessHeap();
+    p_Var1 = (PRTL_CRITICAL_SECTION_DEBUG)HeapAlloc(hHeap,dwFlags,dwBytes);
+    lpCriticalSection[1].DebugInfo = p_Var1;
+    if (p_Var1 == (PRTL_CRITICAL_SECTION_DEBUG)0x0) {
+      FUN_10007003();
+      lpCriticalSection = (LPCRITICAL_SECTION)0x0;
+    }
+  }
+  return lpCriticalSection;
+}
+```
+
+
+
 
 
 
