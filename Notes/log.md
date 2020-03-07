@@ -1244,7 +1244,15 @@ undefined4 FUN_10006a2b(LPCWSTR param_1){
 }
 ```
 
+After a `NULL` check on the input parameter we first seen a search over this input string for the first `\0` character. This loops leaves `lpFirst` pointing to the character after this `\0` terminator. For clarity we rename some locals.
 
+Next we seen an `if` statement with a peculiar guard:
+
+```cpp
+if ((int)((int)param_1_no_nul - (int)(param_1 + 1)) >> 1 != 0) {
+```
+
+The subtraction between `param_1_no_nul` and `param_1` effectively yields the size of the string in bytes. Since we know that this is a `LPCWSTR` we know it's elements are `WCHAR` and therefore each `2` bytes. The left shift by `1` therefore makes sense and effectively divides the total number of bytes by `2` leaving the actual length of the string. If this length is not `0` we continue. This is possible one of the weirdest `strlen` functions I've ever seen.
 
 
 TODO
