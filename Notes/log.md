@@ -1184,6 +1184,68 @@ We now continue with `Ordinal_1`.
 
 ### Back to Ordinal_1 again
 
+The first thing we see after these critical sections are configured is the initialisation of a new `LPCRITICAL_SECTION` object using a [InitializeCriticalSection](https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-initializecriticalsection) call with the critical section being stored in the not yet encountered `DAT_1001f124` global. We'll rename the global to `critical_section_no_config`.
+
+Moving on to the next line we see `FUN_10006a2b` being invoked with `param_3`.
+
+### FUN_10006a2b
+
+```cpp
+undefined4 FUN_10006a2b(LPCWSTR param_1){
+  WCHAR WVar1;
+  LPCWSTR lpFirst;
+  LPWSTR *hMem;
+  int iVar2;
+  LPWSTR pWVar3;
+  uint uVar4;
+  uint local_8;
+  
+  if (param_1 != (LPCWSTR)0x0) {
+    lpFirst = param_1;
+    do {
+      WVar1 = *lpFirst;
+      lpFirst = lpFirst + 1;
+    } while (WVar1 != L'\0');
+    if ((int)((int)lpFirst - (int)(param_1 + 1)) >> 1 != 0) {
+      local_8 = 0;
+      hMem = CommandLineToArgvW(param_1,(int *)&local_8);
+      if (hMem != (LPWSTR *)0x0) {
+        if (0 < (int)local_8) {
+          iVar2 = StrToIntW(*hMem);
+          uVar4 = 1;
+          if (0 < iVar2) {
+            DAT_1001f760 = iVar2;
+          }
+          if (1 < local_8) {
+            do {
+              lpFirst = hMem[uVar4];
+              pWVar3 = StrStrW(lpFirst,L"-h");
+              if (lpFirst == pWVar3) {
+                FUN_100069a2();
+                break;
+              }
+              pWVar3 = StrChrW(lpFirst,L':');
+              if (pWVar3 != (LPWSTR)0x0) {
+                *pWVar3 = L'\0';
+                FUN_10006de0(lpFirst,pWVar3 + 1,1);
+              }
+              uVar4 = uVar4 + 1;
+            } while (uVar4 < local_8);
+          }
+        }
+        LocalFree(hMem);
+      }
+    }
+  }
+  if (DAT_1001f760 == 0) {
+    DAT_1001f760 = 0x3c;
+  }
+  return 0;
+}
+```
+
+
+
 
 TODO
 
