@@ -1188,7 +1188,7 @@ The first thing we see after these critical sections are configured is the initi
 
 Moving on to the next line we see `FUN_10006a2b` being invoked with `param_3`.
 
-### FUN_10006a2b
+### FUN_10006a2b (handle_cmd_args)
 
 ```cpp
 undefined4 FUN_10006a2b(LPCWSTR param_1){
@@ -1252,7 +1252,9 @@ Next we seen an `if` statement with a peculiar guard:
 if ((int)((int)param_1_no_nul - (int)(param_1 + 1)) >> 1 != 0) {
 ```
 
-The subtraction between `param_1_no_nul` and `param_1` effectively yields the size of the string in bytes. Since we know that this is a `LPCWSTR` we know it's elements are `WCHAR` and therefore each `2` bytes. The left shift by `1` therefore makes sense and effectively divides the total number of bytes by `2` leaving the actual length of the string. If this length is not `0` we continue. This is possible one of the weirdest `strlen` functions I've ever seen.
+The subtraction between `param_1_no_nul` and `param_1` effectively yields the size of the string in bytes. Since we know that this is a `LPCWSTR` we know it's elements are `WCHAR` and therefore each `2` bytes. The left shift by `1` therefore makes sense and effectively divides the total number of bytes by `2` leaving the actual length of the string. If this length is not `0` we continue. This is possible one of the weirdest `strlen` type functions I've ever seen.
+
+Next we see a call being made to [CommandLineToArgvW](https://docs.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw). The interesting thing here is that `param_1` is passed as argument, meaning we can go through the program and rename all instances of aliases of `param_1`, including `param_3` in `Oridinal_1` to `cmd_args` since we now know that this is what it is. In addition we can rename this function to something like `handle_cmd_args`.
 
 
 TODO
