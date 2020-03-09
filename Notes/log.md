@@ -1256,8 +1256,88 @@ The subtraction between `param_1_no_nul` and `param_1` effectively yields the si
 
 Next we see a call being made to [CommandLineToArgvW](https://docs.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw). The interesting thing here is that `param_1` is passed as argument, meaning we can go through the program and rename all instances of aliases of `param_1`, including `param_3` in `Oridinal_1` to `cmd_args` since we now know that this is what it is. In addition we can rename this function to something like `handle_cmd_args`.
 
+The call do `CommandLineToArgvW` does the following, the number of commandline arguments is stored in `local_8` which we can rename, an array of `LPWSTR` strings is referenced in `hMem` which we can rename too.
 
-TODO
+Next we see `args` being checked against `NULL` to ensure that there are arguments and similar it is also checked that `num_args` is greated than `0`.
+
+Next we see a call being made to [StrToIntW](https://docs.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-strtointw) with `*args` which parses the first argument to an integer. A bit later we see this argument being stored in `DAT_1001f760` which we will rename.
+
+Next we see a loop over all the other command line arguments (start at index 1).
+
+First we see [StrStrW](https://docs.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-strstrw) being used to find the first occurrence of `-h` in the current argument. Next it is checked that this is infact the start of the current argument and if this is the case `FUN_100069a2` is invoked which we can rename to `handle_h_flag`. The loop over the arguments is also terminated.
+
+in the same loop we also see arguments that contain `:` being passed to `FUN_10006de0`. However the argument is terminated at the `:` (colon) position using `\0`. We rename the function to `handle_colon_arg`.
+
+At the very end of the function we also see `0x3c` being assigned to `first_cmd_arg` if this global does not have a value yet.
+
+It should also be noted that the subroutine always returns `0` regardless of what arguments were handled.
+
+In the end the decompiled function looked like this:
+
+```cpp
+undefined4 handle_cmd_args(LPCWSTR cmd_args){
+  WCHAR ch;
+  LPCWSTR one_after_str_end;
+  LPWSTR *args;
+  int arg1;
+  LPWSTR pWVar1;
+  uint index;
+  uint num_args;
+  
+  if (cmd_args != (LPCWSTR)0x0) {
+    one_after_str_end = cmd_args;
+    do {
+      ch = *one_after_str_end;
+      one_after_str_end = one_after_str_end + 1;
+    } while (ch != L'\0');
+    if ((int)((int)one_after_str_end - (int)(cmd_args + 1)) >> 1 != 0) {
+      num_args = 0;
+      args = CommandLineToArgvW(cmd_args,(int *)&num_args);
+      if (args != (LPWSTR *)0x0) {
+        if (0 < (int)num_args) {
+          arg1 = StrToIntW(*args);
+          index = 1;
+          if (0 < arg1) {
+            first_cmd_arg = arg1;
+          }
+          if (1 < num_args) {
+            do {
+              one_after_str_end = args[index];
+              pWVar1 = StrStrW(one_after_str_end,L"-h");
+              if (one_after_str_end == pWVar1) {
+                handle_h_flag();
+                break;
+              }
+              pWVar1 = StrChrW(one_after_str_end,L':');
+              if (pWVar1 != (LPWSTR)0x0) {
+                *pWVar1 = L'\0';
+                handle_colon_arg(one_after_str_end,pWVar1 + 1,1);
+              }
+              index = index + 1;
+            } while (index < num_args);
+          }
+        }
+        LocalFree(args);
+      }
+    }
+  }
+                    /* First cli arg, defaults to 60 */
+  if (first_cmd_arg == 0) {
+    first_cmd_arg = 0x3c;
+  }
+  return 0;
+}
+```
+
+Next we will look at the two specific argument handling subroutines.
+
+
+### FUN_100069a2 (handle_h_flag)
+
+
+
+
+TODO ... FUN_10006de0 (handle_colon_arg)
 
 
  
