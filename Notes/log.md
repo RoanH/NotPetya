@@ -1384,15 +1384,15 @@ uint handle_h_flag(void){
 }
 ```
 
-One of hte first peculiarities to notice is that the `cmd_args` string from the calling function is passed in via the `EAX` register. We also see that instead of reusing EAX as is `4` is added to the register. This effectively skips the first two charcters of the string (since it is a LPCWSTR which uses wchar_t which has a compiler specific size of 2 in our case) which makes a lot of sense since those are `-h` which were already checked against in the calling function.
+One of the first peculiarities to notice is that the `cmd_args` string from the calling function is passed in via the `EAX` register. We also see that instead of reusing EAX as is `4` is added to the register. This effectively skips the first two charcters of the string (since it is a LPCWSTR which uses wchar_t which has a compiler specific size of 2 in our case) which makes a lot of sense since those are `-h` which were already checked against in the calling function.
 
 Next we see a loop over the input command line that replaces all instances of `;` with ` ` (space). This is probably done so that the command line arguments get treated as a single argument in the calling function but can then be properly parsed in this function.
 
-As expected the next thing we see is another call to `CommandLineToArgvW` where the arguments are returned in `hMem` (args) and the number of arguments in `local_8` (num_args).
+As expected the next thing we see is another call to `CommandLineToArgvW` where the arguments are returned in `hMem` (`args`) and the number of arguments in `local_8` (`num_args`).
 
 Next we see a similar check againt to check taht the arguments are not `NULL` and that there are more than `0` arguments.
 
-Next we again see a loop over all the input arguments. However we recognize the `if` statement after it from earlier in `FUN_10006a2b` (handle_cmd_args). This is again a stupid way to to compute the length of a string. This time we check the string length for being less than `0x10` (16) however. If this is the case then `FUN_10006fc7` is invoked with `critical_section_no_extra_debug` regardless of the actual value of the argument string.
+Next we again see a loop over all the input arguments. However we recognize the `if` statement after it from earlier in `FUN_10006a2b` (`handle_cmd_args`). This is again a stupid way to to compute the length of a string. This time we check the string length for being less than `0x10` (`16`) however. If this is the case then `FUN_10006fc7` is invoked with `critical_section_no_extra_debug` regardless of the actual value of the argument string.
 
 After that function call we see the return value being bitwise ADD'ed into the return value but we know that the return value of this function is not used by the calling function.
 
