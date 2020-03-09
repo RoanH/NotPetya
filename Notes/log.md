@@ -1334,6 +1334,110 @@ Next we will look at the two specific argument handling subroutines.
 
 ### FUN_100069a2 (handle_h_flag)
 
+```cpp
+uint handle_h_flag(void){
+  LPWSTR pWVar1;
+  WCHAR WVar2;
+  int in_EAX;
+  LPCWSTR lpCmdLine;
+  LPWSTR *hMem;
+  uint uVar3;
+  WCHAR *pWVar4;
+  LPWSTR pWVar5;
+  int iVar6;
+  uint local_c;
+  int local_8;
+  
+  lpCmdLine = (LPCWSTR)(in_EAX + 4);
+  iVar6 = 0;
+  local_c = 1;
+  WVar2 = *lpCmdLine;
+  pWVar4 = lpCmdLine;
+  while (WVar2 != L'\0') {
+    pWVar4 = pWVar4 + 1;
+    if (*pWVar4 == L';') {
+      *pWVar4 = L' ';
+    }
+    WVar2 = *pWVar4;
+  }
+  local_8 = 0;
+  hMem = CommandLineToArgvW(lpCmdLine,&local_8);
+  if (hMem != (LPWSTR *)0x0) {
+    if (0 < local_8) {
+      do {
+        pWVar5 = hMem[iVar6];
+        pWVar1 = pWVar5 + 1;
+        do {
+          WVar2 = *pWVar5;
+          pWVar5 = pWVar5 + 1;
+        } while (WVar2 != L'\0');
+        if ((uint)((int)((int)pWVar5 - (int)pWVar1) >> 1) < 0x10) {
+          uVar3 = FUN_10006fc7(critical_section_no_extra_debug);
+          local_c = local_c & uVar3;
+        }
+        iVar6 = iVar6 + 1;
+      } while (iVar6 < local_8);
+    }
+    LocalFree(hMem);
+  }
+  return local_c;
+}
+```
+
+One of hte first peculiarities to notice is that the `cmd_args` string from the calling function is passed in via the `EAX` register. We also see that instead of reusing EAX as is `4` is added to the register. This effectively skips the first two charcters of the string (since it is a LPCWSTR which uses wchar_t which has a compiler specific size of 2 in our case) which makes a lot of sense since those are `-h` which were already checked against in the calling function.
+
+Next we see a loop over the input command line that replaces all instances of `;` with ` ` (space). This is probably done so that the command line arguments get treated as a single argument in the calling function but can then be properly parsed in this function.
+
+As expected the next thing we see is another call to `CommandLineToArgvW` where the arguments are returned in `hMem` (args) and the number of arguments in `local_8` (num_args).
+
+Next we see a similar check againt to check taht the arguments are not `NULL` and that there are more than `0` arguments.
+
+Next we again see a loop over all the input arguments. However we recognize the `if` statement after it from earlier in `FUN_10006a2b` (handle_cmd_args). This is again a stupid way to to compute the length of a string. This time we check the string length for being less than `0x10` (16) however. If this is the case then `FUN_10006fc7` is invoked with `critical_section_no_extra_debug` regardless of the actual value of the argument string.
+
+After that function call we see the return value being bitwise ADD'ed into the return value but we know that the return value of this function is not used by the calling function.
+
+Next we will investigate `FUN_10006fc7`.
+
+### FUN_10006fc7
+
+```cpp
+undefined4 FUN_10006fc7(LPCRITICAL_SECTION param_1){
+  short sVar1;
+  short *in_EAX;
+  undefined4 uVar2;
+  short *psVar3;
+  undefined4 unaff_ESI;
+  short local_28 [16];
+  
+  if ((in_EAX == (short *)0x0) || (*in_EAX == 0)) {
+    uVar2 = 0;
+  }
+  else {
+    psVar3 = (short *)((int)local_28 - (int)in_EAX);
+    do {
+      sVar1 = *in_EAX;
+      *(short *)((int)psVar3 + (int)in_EAX) = sVar1;
+      in_EAX = in_EAX + 1;
+    } while (sVar1 != 0);
+    uVar2 = FUN_10007298(param_1,local_28,unaff_ESI);
+  }
+  return uVar2;
+}
+```
+
+The first thing we notice is that arguments to this function are passed via `EAX` and `ESI`. Going up one layer we immediately notice that `ESI` is 0.
+
+```
+10006a0c 33 f6           XOR        ESI,ESI
+10006a0e e8 b4 05 00 00  CALL       FUN_10006fc7                                     undefined FUN_10006fc7(undefined
+```
+
+We also notice that no further assignments to `EAX` were made in the previous function meaning it still points to the command line arguments (skipping the `-h` flag).
+
+
+
+
+
 
 
 
