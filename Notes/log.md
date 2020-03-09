@@ -1434,18 +1434,189 @@ The first thing we notice is that arguments to this function are passed via `EAX
 
 We also notice that no further assignments to `EAX` were made in the previous function meaning it still points to the command line arguments (skipping the `-h` flag).
 
+We also wee that the loop using EAX is effectively just a copy of EAX and therefore the command line arguments into `local_28`. Meaning that the `LPCWSTR` is mangled into a short array. Effectively this short array stores the first `8` characters of the command line arguments starting with `-h`.
+
+Next we see a call into `FUN_10007298` using the critical section, just created string like short array and `ESI` which has a value of `0`.
+
+### FUN_10007298
+
+```cpp
+undefined4 FUN_10007298(LPCRITICAL_SECTION param_1,void *param_2,undefined4 param_3){
+  int iVar1;
+  HANDLE hHeap;
+  LPVOID lpMem;
+  DWORD dwFlags;
+  PRTL_CRITICAL_SECTION_DEBUG lpMem_00;
+  SIZE_T dwBytes;
+  undefined4 local_8;
+  
+  local_8 = 0;
+  if ((param_1 != (LPCRITICAL_SECTION)0x0) && (param_2 != (void *)0x0)) {
+    EnterCriticalSection(param_1);
+    iVar1 = FUN_100071d6(param_2,0);
+    if (iVar1 == 0) {
+      if (param_1[1].OwningThread < (HANDLE)param_1[1].RecursionCount) {
+        dwBytes = 8;
+        dwFlags = 8;
+        hHeap = GetProcessHeap();
+        lpMem = HeapAlloc(hHeap,dwFlags,dwBytes);
+        *(LPVOID *)(&(param_1[1].DebugInfo)->Type + (int)param_1[1].OwningThread * 2) = lpMem;
+        if (lpMem != (LPVOID)0x0) {
+          dwBytes = param_1[1].LockCount;
+          dwFlags = 8;
+          hHeap = GetProcessHeap();
+          lpMem = HeapAlloc(hHeap,dwFlags,dwBytes);
+          **(LPVOID **)(&(param_1[1].DebugInfo)->Type + (int)param_1[1].OwningThread * 2) = lpMem;
+          if (lpMem == (LPVOID)0x0) {
+            lpMem = *(LPVOID *)(&(param_1[1].DebugInfo)->Type + (int)param_1[1].OwningThread * 2);
+            dwFlags = 0;
+            hHeap = GetProcessHeap();
+            HeapFree(hHeap,dwFlags,lpMem);
+          }
+          else {
+            *(undefined4 *)
+             (*(int *)(&(param_1[1].DebugInfo)->Type + (int)param_1[1].OwningThread * 2) + 4) =
+                 param_3;
+            memcpy(**(void ***)(&(param_1[1].DebugInfo)->Type + (int)param_1[1].OwningThread * 2),
+                   param_2,param_1[1].LockCount);
+            param_1[1].OwningThread = (HANDLE)((int)param_1[1].OwningThread + 1);
+            local_8 = 1;
+          }
+        }
+      }
+      else {
+        dwBytes = param_1[1].RecursionCount * 4 + 0x3fc;
+        lpMem_00 = param_1[1].DebugInfo;
+        dwFlags = 8;
+        hHeap = GetProcessHeap();
+        lpMem_00 = (PRTL_CRITICAL_SECTION_DEBUG)HeapReAlloc(hHeap,dwFlags,lpMem_00,dwBytes);
+        if (lpMem_00 != (PRTL_CRITICAL_SECTION_DEBUG)0x0) {
+          param_1[1].DebugInfo = lpMem_00;
+          param_1[1].RecursionCount = param_1[1].RecursionCount + 0xff;
+          local_8 = FUN_10007298(param_1,param_2,param_3);
+        }
+      }
+    }
+    LeaveCriticalSection(param_1);
+  }
+  return local_8;
+}
+```
+
+These calls continue for a few levels but it all just seems to be synchronization logic with no globals being modified and the input critical section is used but seems to be used only as a critical section to lock on. In effect this seems to suggest that `FUN_10006fc7` is just a lock and wait function. Meaning that we simply suspend the current thread for a bit. The final component function of the lock is below.
+
+```cpp
+int FUN_100071d6(undefined4 param_1,undefined4 *param_2){
+  uint in_EAX;
+  LPCRITICAL_SECTION unaff_ESI;
+  uint uVar1;
+  int local_8;
+  
+  local_8 = 0;
+  if (unaff_ESI != (LPCRITICAL_SECTION)0x0) {
+    EnterCriticalSection(unaff_ESI);
+    uVar1 = in_EAX;
+    if (in_EAX < (int)unaff_ESI[1].OwningThread + in_EAX) {
+      do {
+        local_8 = (*(code *)unaff_ESI[1].SpinCount)
+                            (**(undefined4 **)
+                               (&(unaff_ESI[1].DebugInfo)->Type +
+                               (uVar1 % (uint)unaff_ESI[1].OwningThread) * 2),param_1,
+                             unaff_ESI[1].LockCount);
+        if (local_8 != 0) {
+          if (param_2 != (undefined4 *)0x0) {
+            *param_2 = *(undefined4 *)
+                        (&(unaff_ESI[1].DebugInfo)->Type +
+                        (uVar1 % (uint)unaff_ESI[1].OwningThread) * 2);
+          }
+          break;
+        }
+        uVar1 = uVar1 + 1;
+      } while (uVar1 < (int)unaff_ESI[1].OwningThread + in_EAX);
+    }
+    LeaveCriticalSection(unaff_ESI);
+  }
+  return local_8;
+}
+```
+
+To confirm our suspicions we look for references to any of the component functions. Turns out that all of them have multiple references all over the program, further enforcing the suspicious that this is a `suspend and wait` type of call. We will rename the functions to suggest this.
+
+- `FUN_10006fc7` -> `possible_lock_and_wait_check_args` 
+- `FUN_10007298` -> `possible_lock_and_wait`
+- `FUN_100071d6` -> `possible_lock`
+
+We are sure to encounter them all again later, but for now we leave it at this and move on to the handling of colon command line arguments.
+
+### FUN_10006de0 (handle_colon_arg)
+
+```cpp
+DWORD handle_colon_arg(short *param_1,short *param_2,undefined4 param_3){
+  short sVar1;
+  LPCRITICAL_SECTION p_Var2;
+  HANDLE hHeap;
+  short *psVar3;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  LPVOID lpMem;
+  LPVOID local_10;
+  LPVOID local_c;
+  DWORD local_8;
+  
+  p_Var2 = critical_section_with_extra_debug;
+  local_8 = 0;
+  psVar3 = param_1;
+  do {
+    sVar1 = *psVar3;
+    psVar3 = psVar3 + 1;
+  } while (sVar1 != 0);
+  dwBytes = ((int)((int)psVar3 - (int)(param_1 + 1)) >> 1) * 2 + 2;
+  dwFlags = 8;
+  hHeap = GetProcessHeap();
+  local_10 = HeapAlloc(hHeap,dwFlags,dwBytes);
+  if (local_10 != (LPVOID)0x0) {
+    psVar3 = param_1;
+    do {
+      sVar1 = *psVar3;
+      psVar3 = psVar3 + 1;
+    } while (sVar1 != 0);
+    memcpy(local_10,param_1,((int)((int)psVar3 - (int)(param_1 + 1)) >> 1) * 2 + 2);
+    psVar3 = param_2;
+    do {
+      sVar1 = *psVar3;
+      psVar3 = psVar3 + 1;
+    } while (sVar1 != 0);
+    dwBytes = ((int)((int)psVar3 - (int)(param_2 + 1)) >> 1) * 2 + 2;
+    dwFlags = 8;
+    hHeap = GetProcessHeap();
+    local_c = HeapAlloc(hHeap,dwFlags,dwBytes);
+    if (local_c != (LPVOID)0x0) {
+      psVar3 = param_2;
+      do {
+        sVar1 = *psVar3;
+        psVar3 = psVar3 + 1;
+      } while (sVar1 != 0);
+      memcpy(local_c,param_2,((int)((int)psVar3 - (int)(param_2 + 1)) >> 1) * 2 + 2);
+      dwFlags = possible_lock_and_wait(p_Var2,&local_10,param_3);
+      if (dwFlags != 0) {
+        return dwFlags;
+      }
+      lpMem = local_c;
+      local_8 = dwFlags;
+      hHeap = GetProcessHeap();
+      HeapFree(hHeap,dwFlags,lpMem);
+    }
+    dwFlags = 0;
+    lpMem = local_10;
+    hHeap = GetProcessHeap();
+    HeapFree(hHeap,dwFlags,lpMem);
+  }
+  return local_8;
+}
+```
 
 
-
-
-
-
-
-TODO ... FUN_10006de0 (handle_colon_arg)
-
-
- 
-
+TODO
 
 
 
