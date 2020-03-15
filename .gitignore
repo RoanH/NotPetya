@@ -1,0 +1,8 @@
+# Software directories
+dll/
+ooanalyzer/
+
+# Malware, see https://github.com/fabrimagic72/malware-samples
+027cc450ef5f8c5f653329641ec1fed91f694e0d229928963b30f6b0d7d3a745
+027cc450ef5f8c5f653329641ec1fed91f694e0d229928963b30f6b0d7d3a745-20170707033827.zip
+
