@@ -1637,9 +1637,7 @@ Inside the if statement that is executed if this privilege is granted to the mal
 ### FUN_1000835e
 
 ```cpp
-uint FUN_1000835e(void)
-
-{
+uint FUN_1000835e(void){
   code *pcVar1;
   int iVar2;
   BOOL BVar3;
@@ -1664,6 +1662,42 @@ uint FUN_1000835e(void)
 }
 ```
 
+The function stars with a call to a different function called `FUN_10008320` presumable to obtain a file path as we see it being treated as such later. We also note that this file path is at most `780` characters long.
+
+### FUN_10008320
+
+```cpp
+undefined4 FUN_10008320(LPWSTR param_1){
+  LPWSTR pszFile;
+  undefined4 uVar1;
+  
+  uVar1 = 0;
+  pszFile = PathFindFileNameW(&dll_fully_qualified_path);
+  pszFile = PathCombineW(param_1,L"C:\\Windows\\",pszFile);
+  if (pszFile != (LPWSTR)0x0) {
+    pszFile = PathFindExtensionW(param_1);
+    if (pszFile != (LPWSTR)0x0) {
+      *pszFile = L'\0';
+      uVar1 = 1;
+    }
+  }
+  return uVar1;
+}
+```
+
+First we see a call to [PathFindFileNameW](https://docs.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathfindfilenamew) being used to obtain the file name of the malware from the `dll_fully_qualified_path` global. Next we see [PathCombineW](https://docs.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathcombinew) being used to combine `C:\Windows\` and the malware file name, the result is stored in the passed buffer `param_1`. Next we see a call being made to [PathFindExtensionW](https://docs.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathfindextensionw) to find the location of the path extension dot `.`. If found this dot is replaced by a `NUL` effectively terminating the string. At this point the function also returns true. We'll rename the function to `get_malware_c_windows_file_path`.
+
+### Back in FUN_1000835e (killswitch)
+
+We see that this function continues if a path for the malware in `C:\Windows\` was succesfully constructed. Next we see [PathFileExistsW](https://docs.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathfileexistsw) being used to check if a file already exists at the constructed path.
+
+**If such a file exists already, [ExitProcess](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-exitprocess) is invoked terminating the malware and all its threads.**
+
+If the file did not exist yet then it is created and the return value of this call is the return value of the function. We rename the function to `create_c_windows_file_or_exit`
+
+Next we move on to the second function inside the if statement in `Oridinal_1`.
+
+### FUN_10008d5a
 
 
 
