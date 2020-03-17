@@ -1621,6 +1621,48 @@ This wraps up the investigation of the command line argument parsing, however a 
 
 ### Ordinal_1 (again)
 
+Directly after handling the command line argument we see the following statement.
+
+```cpp
+if ((granted_privileges & 2) != 0) {
+  FUN_1000835e();
+  FUN_10008d5a();
+}
+```
+
+Referring back to our earlier notes we see that a value of `2` here indicates the `SeDebugPrivilege`. From [a quick Google search](https://devblogs.microsoft.com/oldnewthing/20080314-00/?p=23113) we note that this privilege is dangerous and effectively equivalent to administrator access as it allows the injection of code into any program that is running, including System owned processes.
+
+Inside the if statement that is executed if this privilege is granted to the malware we see two subroutine calls. We start with the first one.
+
+### FUN_1000835e
+
+```cpp
+uint FUN_1000835e(void)
+
+{
+  code *pcVar1;
+  int iVar2;
+  BOOL BVar3;
+  HANDLE pvVar4;
+  uint uVar5;
+  WCHAR local_61c [780];
+  
+  uVar5 = 0;
+  iVar2 = FUN_10008320(local_61c);
+  if (iVar2 != 0) {
+    BVar3 = PathFileExistsW(local_61c);
+    if (BVar3 != 0) {
+      ExitProcess(0);
+      pcVar1 = (code *)swi(3);
+      uVar5 = (*pcVar1)();
+      return uVar5;
+    }
+    pvVar4 = CreateFileW(local_61c,0x40000000,0,(LPSECURITY_ATTRIBUTES)0x0,2,0x4000000,(HANDLE)0x0);
+    uVar5 = (uint)(pvVar4 != (HANDLE)0xffffffff);
+  }
+  return uVar5;
+}
+```
 
 
 
