@@ -1615,6 +1615,15 @@ DWORD handle_colon_arg(short *param_1,short *param_2,undefined4 param_3){
 }
 ```
 
+The general setup of this function looks straight forward. First the length of the argument is determined. Next enough heap memory is allocated to copy the argument into. The same happens for the argument length that was passed. At the end of the function we see both of these allocated heap regions being freed again. The only thing that happens in between is that a call is made to `possible_lock_and_wait` which we named earlier. The data passed here is the global `critical_section_with_extra_debug`, allocated memory with the copied passed argument and `param_3` which we know is `1` from the function call. It might be that `possible_lock_and_wait` does more than we think it does. Besides this the function returns the return value of the `possible_lock_and_wait` call or `local_8` if the call returned `0`. We know that the return value of this function is not used by the calling function, however, Ghidra tells us that there are 3 references to this function so perhaps it is used from a different location.
+
+This wraps up the investigation of the command line argument parsing, however a lot is still very unclear. For now we move back to `Ordinal_1` however.
+
+### Ordinal_1 (again)
+
+
+
+
 
 TODO
 
