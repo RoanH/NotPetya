@@ -1693,7 +1693,7 @@ We see that this function continues if a path for the malware in `C:\Windows\` w
 
 **If such a file exists already, [ExitProcess](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-exitprocess) is invoked terminating the malware and all its threads.**
 
-If the file did not exist yet then it is created and the return value of this call is the return value of the function. We rename the function to `create_c_windows_file_or_exit`
+If the file did not exist yet then it is created and the success value of this call is the return value of the function. We rename the function to `create_c_windows_file_or_exit`
 
 Next we move on to the second function inside the if statement in `Oridinal_1`.
 
@@ -1708,6 +1708,7 @@ TODO
 Memory:
 - `FUN_100094a5` - only internal reference to `Ordinal_1`
 - `FUN_10009590` - difficult to grasp but invokes `FUN_100094a5`
+- `FUN_1000835e` - contains a killswitch
 
 
 
