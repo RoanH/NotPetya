@@ -1813,9 +1813,7 @@ Next we move on to `FUN_100014a9` which is presumably in control of some rather 
 ### FUN_100014a9
 
 ```cpp
-void FUN_100014a9(void)
-
-{
+void FUN_100014a9(void){
   uint *puVar1;
   uint *puVar2;
   char cVar3;
@@ -2031,6 +2029,153 @@ void FUN_100014a9(void)
   return;
 }
 ```
+
+The first thing to note is the large number of undefined structures. Hopefully we will be able to retype some of these since they cover well over 1000 bytes combined. From a quick look at the function body we can see that this subroutine probably coordinates the encryption and demand screen. We can also see the bitcoin payment address and something that looks like the AES key generation.
+
+First in the function we see a lot of metsets populating arrays. The important thing to note is that the memsets fill a longer range than what Ghidra has allocated for them.
+
+After the we see `local_19c` being passed to `FUN_10001038`.
+
+### FUN_10001038
+
+```cpp
+DWORD FUN_10001038(char *param_1){
+  char cVar1;
+  UINT UVar2;
+  DWORD DVar3;
+  BOOL BVar4;
+  char *pcVar5;
+  char *pcVar6;
+  int iVar7;
+  int *piVar8;
+  undefined4 *_Size;
+  byte local_270;
+  undefined local_26f [263];
+  uint local_168;
+  undefined4 uStack356;
+  undefined4 uStack352;
+  undefined4 uStack348;
+  char cStack344;
+  undefined local_157;
+  undefined4 local_60 [2];
+  int local_58 [6];
+  char local_40;
+  undefined4 local_3f;
+  DWORD local_20;
+  HANDLE local_1c;
+  char *local_18;
+  DWORD local_14;
+  undefined4 local_10;
+  ushort local_c;
+  undefined local_a;
+  
+  local_14 = 0;
+  local_270 = 0;
+  memset(local_26f,0,0x103);
+  local_168 = local_168 & 0xffffff00;
+  memset((void *)((int)&local_168 + 1),0,0x103);
+  iVar7 = 6;
+  local_60[0] = 0;
+  piVar8 = local_58;
+  while (iVar7 != 0) {
+    iVar7 = iVar7 + -1;
+    *piVar8 = 0;
+    piVar8 = piVar8 + 1;
+  }
+  local_40 = '\0';
+  iVar7 = 7;
+  _Size = &local_3f;
+  while (iVar7 != 0) {
+    iVar7 = iVar7 + -1;
+    *_Size = 0;
+    _Size = _Size + 1;
+  }
+  *(undefined2 *)_Size = 0;
+  local_10 = 0x5c2e5c5c;
+  local_c = 0x3a30;
+  local_a = 0;
+  local_20 = 0;
+  *(undefined *)((int)_Size + 2) = 0;
+  if (param_1 == (char *)0x0) {
+    DVar3 = 0xa0;
+  }
+  else {
+    memset(param_1,0,0x104);
+    local_168 = 0x5c2e5c5c;
+    uStack356 = 0x73796850;
+    uStack352 = 0x6c616369;
+    uStack348 = 0x76697244;
+    cStack344 = 'e';
+    local_157 = 0;
+    UVar2 = GetSystemDirectoryA((LPSTR)&local_270,0x104);
+    if (UVar2 != 0) {
+      local_c = local_c & 0xff00 | (ushort)local_270;
+      local_1c = CreateFileA((LPCSTR)&local_10,0,3,(LPSECURITY_ATTRIBUTES)0x0,3,0,(HANDLE)0x0);
+      if (local_1c != (HANDLE)0xffffffff) {
+        BVar4 = DeviceIoControl(local_1c,0x560000,(LPVOID)0x0,0,local_60,0x20,&local_20,
+                                (LPOVERLAPPED)0x0);
+        if (BVar4 == 0) {
+          local_14 = GetLastError();
+          if (0 < (int)local_14) {
+            local_14 = local_14 & 0xffff | 0x80070000;
+          }
+        }
+        else {
+          _itoa(local_58[0],&local_40,10);
+          _Size = &local_168;
+          do {
+            cVar1 = *(char *)_Size;
+            _Size = (undefined4 *)((int)_Size + 1);
+          } while (cVar1 != '\0');
+          _Size = (undefined4 *)((int)_Size - ((int)&local_168 + 1));
+          pcVar5 = &local_40;
+          do {
+            cVar1 = *pcVar5;
+            pcVar5 = pcVar5 + 1;
+          } while (cVar1 != '\0');
+          pcVar5 = pcVar5 + -(int)&local_3f;
+          local_18 = pcVar5;
+          if (pcVar5 + 1 + (int)_Size < (char *)0x105) {
+            if (_Size != (undefined4 *)0x0) {
+              if ((undefined4 *)0x103 < _Size) {
+                _Size = (undefined4 *)0x103;
+              }
+              memcpy(param_1,&local_168,(size_t)_Size);
+              pcVar5 = local_18;
+              *(undefined *)((int)_Size + (int)param_1) = 0;
+            }
+            pcVar6 = param_1;
+            do {
+              cVar1 = *pcVar6;
+              pcVar6 = pcVar6 + 1;
+            } while (cVar1 != '\0');
+            pcVar6 = pcVar6 + -(int)(param_1 + 1);
+            if ((pcVar5 != (char *)0x0) && (pcVar5 + (int)pcVar6 < (char *)0x104)) {
+              memcpy(pcVar6 + (int)param_1,&local_40,(size_t)local_18);
+              param_1[(int)(pcVar5 + (int)pcVar6)] = '\0';
+            }
+          }
+          else {
+            local_14 = 0x8007007a;
+          }
+        }
+        CloseHandle(local_1c);
+        return local_14;
+      }
+    }
+    DVar3 = GetLastError();
+    if (0 < (int)DVar3) {
+      DVar3 = DVar3 & 0xffff | 0x80070000;
+    }
+  }
+  return DVar3;
+}
+
+Surprisingly, this function is rather long too. After some initial setup we again see a familiar call to `CreateFileA` in combination with `DeviceIoControl`. We also see a call to `GetSystemDirectoryA` to get the system directory. However the passed `local_270` is defintely not the correct parameter to pass here. It is also indicated that a buffer of size `0x104` was supposed to be passed. Looking at the local variables it is likely that `local_26f` will store this path. The size however does not match up. Most likely the byte of `local_270` has to be joined to this range of memory freeing up 4 bytes for most likely a `DWORD` type or similar later on.
+
+For the time being almost every thing that happens to the local variables is meaning less. So we'll first try to retype things using the Win API functions.
+
+The `DeviceIoControl` function is called with control code `0x560000`. This maps to the [IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS](https://docs.microsoft.com/nl-nl/windows/win32/api/winioctl/ni-winioctl-ioctl_volume_get_volume_disk_extents?redirectedfrom=MSDN) constant. From this we gather that the output buffer `local_60` has to be of type [VOLUME_DISK_EXTENTS](https://docs.microsoft.com/nl-nl/windows/win32/api/winioctl/ns-winioctl-volume_disk_extents). After manually adding all the structures and retyping the locals the decompilation result clears up a bit.
 
 
 
