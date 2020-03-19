@@ -1732,7 +1732,7 @@ The first thing we see in this function is that `C:` drive is opened as a file w
 
 > Retrieves information about the physical disk's geometry: type, number of cylinders, tracks per cylinder, sectors per track, and bytes per sector.
 
-The result of this call is stored in `local_20` and the total number of returned bytes is stored in `local_24`. Next we see a buffer being allocated for `10 * local_c` bytes. This variable however does not have a value as far as we can tell. This might be because `local_24`, `local_20` and `local_c` are supposed to represent the same structure but were not recognized as such by Ghidra as `local_20` has an undefined type.
+The result of this call is stored in `local_20` and the total number of returned bytes is stored in `local_24`. Next we see a buffer being allocated for `10 * local_c` bytes and with the `0` flags which means `LMEM_FIXED` here. This variable however does not have a value as far as we can tell. This might be because `local_24`, `local_20` and `local_c` are supposed to represent the same structure but were not recognized as such by Ghidra as `local_20` has an undefined type.
 
 Next we see a call to [SetFilePointer](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfilepointer). This subroutine call moves the given file pointer, the distance to move by is `local_c`.
 
@@ -1767,6 +1767,13 @@ void FUN_10008d5a(void){
 }
 ```
 
+It now becomes clear that the allocated buffer is for `10` disk sectors and that the pointer offset is the number of bytes per sector.
+
+The next thing we see is a [WriteFile](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-writefile) invocation. Assuming that the allocated buffer is initialised to all zeroes then this call completely zeroes out the 2nd sector on the `C:` drive. It makes sense that the first disk sector is skipped as this is always the location of the [MBR](http://www.ntfs.com/mbr.htm) (Master Boot Record). On a NTFS partitioned volume however the first `16` sectors are used for `$Boot` metadata. In fact the other `15` sectors are used for the [IPL](http://www.ntfs.com/ntfs-partition-boot-sector.htm). The IPL is the very first program that is loaded when a computer is powered on and normally loads the operating system. However, in our case the first sector this program is stored on just got zeroed out completely. A computer this happens with likely won't be booting anymore.
+
+Near the end of the subroutine we see an if statement that checks for the detected precense of anti virus software `8`, we know that this indicates the 4th bit which is flipped to `0` by the presence of Kaspersky. If Kaspersky is not detected and a function called `FUN_100014a9` returns `0` then the function is short circuited. Otherwise a function called `FUN_10008cbf` is also executed before returning.
+
+### FUN_100014a9
 
 
 
@@ -1781,7 +1788,7 @@ Memory:
 - `FUN_100094a5` - only internal reference to `Ordinal_1`
 - `FUN_10009590` - difficult to grasp but invokes `FUN_100094a5`
 - `FUN_1000835e` - contains a killswitch
-
+- `FUN_10008d5a` - `destroy_boot` rip everyone
 
 
 
