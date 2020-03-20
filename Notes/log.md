@@ -2354,6 +2354,168 @@ do {
 } while (uVar6 < 0x3c);
 ```
 
+This effectively maps the random bytes that were generated to a randomly generated string of `1-9, A-Z, a-z`.
+
+Next we see a call to `FUN_100012d5` with the drive path and `local_59c` whose type is still unknown. Hopefully this function will allow us to figure out the type.
+
+### FUN_100012d5
+
+```cpp
+DWORD FUN_100012d5(LPCSTR param_1,void *param_2){
+  HANDLE hFile;
+  BOOL BVar1;
+  DWORD DVar2;
+  DWORD local_8;
+  
+  DVar2 = 0;
+  local_8 = 0;
+  if (param_1 == (LPCSTR)0x0) {
+    DVar2 = 0x80070057;
+  }
+  else {
+    memset(param_2,0,0x200);
+    hFile = CreateFileA(param_1,0x80000000,1,(LPSECURITY_ATTRIBUTES)0x0,3,0,(HANDLE)0x0);
+    if (hFile == (HANDLE)0xffffffff) {
+      DVar2 = GetLastError();
+      if (0 < (int)DVar2) {
+        DVar2 = DVar2 & 0xffff | 0x80070000;
+      }
+    }
+    else {
+      BVar1 = SetFilePointerEx(hFile,0,(PLARGE_INTEGER)0x0,0);
+      if (((BVar1 == 0) ||
+          (BVar1 = ReadFile(hFile,param_2,0x200,&local_8,(LPOVERLAPPED)0x0), BVar1 == 0)) &&
+         (DVar2 = GetLastError(), 0 < (int)DVar2)) {
+        DVar2 = DVar2 & 0xffff | 0x80070000;
+      }
+      CloseHandle(hFile);
+    }
+  }
+  return DVar2;
+}
+```
+
+First we see the passed drive being opened with the `GENERIC_READ` access again. Then we see the file pointer being moved to the start of the drive. A call to [ReadFile](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-readfile) is then made. This call reads the first `0x200` or `512` bytes into `param_2`. The entire fuction ends up as.
+
+```cpp
+DWORD read_first_512_bytes(LPCSTR drive,LPVOID buffer){
+  HANDLE hFile;
+  BOOL success;
+  DWORD retval;
+  DWORD bytes_read;
+  
+  retval = 0;
+  bytes_read = 0;
+  if (drive == (LPCSTR)0x0) {
+    retval = 0x80070057;
+  }
+  else {
+    memset(buffer,0,0x200);
+    hFile = CreateFileA(drive,0x80000000,1,(LPSECURITY_ATTRIBUTES)0x0,3,0,(HANDLE)0x0);
+    if (hFile == (HANDLE)0xffffffff) {
+      retval = GetLastError();
+      if (0 < (int)retval) {
+        retval = retval & 0xffff | 0x80070000;
+      }
+    }
+    else {
+      success = SetFilePointerEx(hFile,0,(PLARGE_INTEGER)0x0,0);
+      if (((success == 0) ||
+          (success = ReadFile(hFile,buffer,0x200,&bytes_read,(LPOVERLAPPED)0x0), success == 0)) &&
+         (retval = GetLastError(), 0 < (int)retval)) {
+        retval = retval & 0xffff | 0x80070000;
+      }
+      CloseHandle(hFile);
+    }
+  }
+  return retval;
+}
+```
+
+### Back to FUN_100014a9
+
+Going back to the calling function we see that the next snippet is rather odd.
+
+```cpp
+puVar4 = local_3de + 2;
+iVar11 = 4;
+uVar8 = 0;
+do {
+  uVar6 = *puVar4;
+  if ((uVar6 != 0) && (uVar6 != 0xffffffff)) {
+    uVar8 = uVar6;
+  }
+  puVar4 = puVar4 + 4;
+  iVar11 = iVar11 + -1;
+} while (iVar11 != 0);
+if (uVar8 == 0xffffffff) {
+  uVar8 = 0;
+}
+if (uVar8 < 0x29) {
+  status_code = 0x80070272;
+}else {
+```
+
+Given that `local_3de` has not yet been used it is weird that computation using it that does not depend on any other variables would determine a status code based on the value of `uVar8`. For we it's fine to assume that this always succeeds as the function is cut short if this check fails.
+
+The next part we see is.
+
+```cpp
+iVar11 = 0x80;
+puVar9 = (undefined4 *)first_512_bytes;
+puVar10 = local_79c;
+while (iVar11 != 0) {
+  iVar11 = iVar11 + -1;
+  *puVar10 = *puVar9;
+  puVar9 = puVar9 + 1;
+  puVar10 = puVar10 + 1;
+}
+uVar8 = 0;
+do {
+  *(byte *)((int)local_79c + uVar8) = *(byte *)((int)local_79c + uVar8) ^ 7;
+  uVar8 = uVar8 + 1;
+} while (uVar8 < 0x200);
+memset(&local_99c,7,0x200);
+local_39c = 0;
+status_code = gen_sec_random_bytes(local_39b,0x20);
+```
+
+The upper loop appears to copy the first `0x80` or `128` bytes from `first_512_bytes` into `local_79c`. 
+
+The lower loop then appears to XOR all the `0x200` or `512` bytes in `local_79c` with `7` or `0111`.
+
+Next we see a memset that sets the first `0x200` or `512` bytes of `local_99c` to `7`. 
+
+We also clearly run into the fact the Ghidra got the length of all the buffers wrong, since if it were actually correct about the lengths there would be a ton of buffer overflows.
+
+The last line generates `0x20` secure random bytes and stores them into `local_39b`.
+
+After this was succesful we see the following logic.
+
+```cpp
+if ((-1 < (int)status_code) &&
+  (status_code = gen_sec_random_bytes(local_37b,8), -1 < (int)status_code)) {
+  memcpy(local_373,"1Mz7153HMuxXTuR2R1t78mGSdzaAtNbBWX",0x22);
+  _Size = random_sec_string;
+  local_351 = 0;
+  do {
+    cVar3 = *_Size;
+    _Size = _Size + 1;
+  } while (cVar3 != '\0');
+  _Size = _Size + -(int)(random_sec_string + 1);
+  if (_Size != (char *)0x0) {
+    if ((char *)0x156 < _Size) {
+      _Size = (char *)0x156;
+    }
+  memcpy(local_2f3,random_sec_string,(size_t)_Size);
+  local_2f3[(int)_Size] = 0;
+}
+local_c = (undefined4 *)(*_DAT_1001b104)(0x200);
+```
+
+First we see another `8` secure random bytes being generated.
+
+
 
 
 TODO
@@ -2365,7 +2527,7 @@ Memory:
 - `FUN_10009590` - difficult to grasp but invokes `FUN_100094a5`
 - `FUN_1000835e` - contains a killswitch
 - `FUN_10008d5a` - `destroy_boot` rip everyone
-
+- `FUN_10001038` - could be revisited as we now have more information
 
 
 
