@@ -2655,6 +2655,68 @@ ERROR!
 
 Some things are missing however the idea is clear. The bitcoin address and personal key will likely be substituted in in the part of the code we will look at next. Analyzing this custom boot loader seems like a task beyond our current capabilities and time frame however.
 
+Continuing with the actual function code we see the following.
+
+```cpp
+if (-1 < (int)status_code) {
+  local_14 = (local_10_maybe_size - (local_10_maybe_size & 0x1ff)) + 0x400;
+  puVar9 = (undefined4 *)(*_DAT_1001b104)(local_14);
+  if (puVar9 == (undefined4 *)0x0) {
+    status_code = 0x8007000e;
+  }else {
+```
+
+Here we again see a call to the memory allocation function. Writing out the expression for `local_14` we can find the size as.
+
+> (0x22b1 - (0x22b1 & 0x1ff)) + 0x400    
+> = (0x22b1 - b1) + 0x400    
+> = 0x2200 + 0x400    
+> = 0x2600
+
+Interestingly enough this is larger than the ransomware boot screen. After an other status check we arrive at the following logic.
+
+```cpp
+iVar11 = 0x80;
+puVar10 = alloc_mem_512_with_unkown_data_128;
+puVar12 = puVar9;
+while (iVar11 != 0) {
+  iVar11 = iVar11 + -1;
+  *puVar12 = *puVar10;
+  puVar10 = puVar10 + 1;
+  puVar12 = puVar12 + 1;
+}
+puVar9[0x6e] = local_3e4;
+*(undefined2 *)(puVar9 + 0x6f) = local_3e0;
+puVar4 = local_3de;
+puVar7 = (uint *)((int)puVar9 + 0x1be);
+iVar11 = 4;
+do {
+  *puVar7 = *puVar4;
+  uVar7[1] = puVar4[1];
+  puVar2 = puVar7 + 3;
+  puVar1 = puVar4 + 3;
+  puVar7[2] = puVar4[2];
+  puVar4 = puVar4 + 4;
+  puVar7 = puVar7 + 4;
+  iVar11 = iVar11 + -1;
+  *puVar2 = *puVar1;
+} while (iVar11 != 0);
+memcpy(puVar9 + 0x80,(void *)partition_style_and_boot_screen,local_10_maybe_size);
+uVar8 = local_14 >> 9;
+DVar5 = 0;
+```
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
