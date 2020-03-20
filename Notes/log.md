@@ -2177,6 +2177,109 @@ For the time being almost every thing that happens to the local variables is mea
 
 The `DeviceIoControl` function is called with control code `0x560000`. This maps to the [IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS](https://docs.microsoft.com/nl-nl/windows/win32/api/winioctl/ni-winioctl-ioctl_volume_get_volume_disk_extents?redirectedfrom=MSDN) constant. From this we gather that the output buffer `local_60` has to be of type [VOLUME_DISK_EXTENTS](https://docs.microsoft.com/nl-nl/windows/win32/api/winioctl/ns-winioctl-volume_disk_extents). After manually adding all the structures and retyping the locals the decompilation result clears up a bit.
 
+This function is still fairly complicated however and hard to understand. For now we'll leave it be and try to figure out what the `param_1` is supposed to be first.
+
+The important thing to note is that what is returned is an error (status) code. The function itself seems to heavily modify the input. We also see that in `FUN_100014a9` the global `DAT_1001f8f8` is often used to store this error code throughout the function, so lets rename it to `status_code`.
+
+### FUN_1000122d
+
+Next we take a look at `FUN_1000122d` which will hopefully lets us figure out the exact type of `local_8`
+
+```cpp
+DWORD FUN_1000122d(LPCSTR param_1,undefined4 *param_2){
+  HANDLE hDevice;
+  BOOL BVar1;
+  DWORD DVar2;
+  undefined4 local_9c [37];
+  DWORD local_8;
+  
+  DVar2 = 0;
+  local_8 = 0;
+  if (param_1 == (LPCSTR)0x0) {
+    DVar2 = 0x80070057;
+  }
+  else {
+    hDevice = CreateFileA(param_1,0x80100000,3,(LPSECURITY_ATTRIBUTES)0x0,3,0,(HANDLE)0x0);
+    if (hDevice == (HANDLE)0xffffffff) {
+      DVar2 = GetLastError();
+      if (0 < (int)DVar2) {
+        DVar2 = DVar2 & 0xffff | 0x80070000;
+      }
+    }
+    else {
+      BVar1 = DeviceIoControl(hDevice,0x70048,(LPVOID)0x0,0,local_9c,0x90,&local_8,(LPOVERLAPPED)0x0
+                             );
+      if (BVar1 == 0) {
+        DVar2 = GetLastError();
+        if (0 < (int)DVar2) {
+          DVar2 = DVar2 & 0xffff | 0x80070000;
+        }
+      }
+      else {
+        *param_2 = local_9c[0];
+      }
+      CloseHandle(hDevice);
+    }
+  }
+  return DVar2;
+}
+```
+
+The main thing to figure out in this function is the type of `local_9c`. `DeviceIoControl` in this function is called with control code `0x70048`. This represents the [IOCTL_DISK_GET_PARTITION_INFO_EX](https://docs.microsoft.com/nl-nl/windows/win32/api/winioctl/ni-winioctl-ioctl_disk_get_partition_info_ex?redirectedfrom=MSDN) constant. This allows us to retype `local_9c` giving.
+
+```cpp
+DWORD FUN_1000122d(LPCSTR param_1,undefined4 *param_2){
+  HANDLE hDevice;
+  BOOL BVar1;
+  DWORD DVar2;
+  PARTITION_INFORMATION_EX local_9c;
+  DWORD local_8;
+  
+  DVar2 = 0;
+  local_8 = 0;
+  if (param_1 == (LPCSTR)0x0) {
+    DVar2 = 0x80070057;
+  }
+  else {
+    hDevice = CreateFileA(param_1,0x80100000,3,(LPSECURITY_ATTRIBUTES)0x0,3,0,(HANDLE)0x0);
+    if (hDevice == (HANDLE)0xffffffff) {
+      DVar2 = GetLastError();
+      if (0 < (int)DVar2) {
+        DVar2 = DVar2 & 0xffff | 0x80070000;
+      }
+    }
+    else {
+      BVar1 = DeviceIoControl(hDevice,0x70048,(LPVOID)0x0,0,&local_9c,0x90,&local_8,
+                              (LPOVERLAPPED)0x0);
+      if (BVar1 == 0) {
+        DVar2 = GetLastError();
+        if (0 < (int)DVar2) {
+          DVar2 = DVar2 & 0xffff | 0x80070000;
+        }
+      }
+      else {
+        *param_2 = local_9c.PartitionStyle;
+      }
+      CloseHandle(hDevice);
+    }
+  }
+  return DVar2;
+}
+```
+
+This clearly shows us the general structure of the function. `param_1` is most likely a logical drive and it's `PartitionStyle` is fetched and returned via `param_2`. This also allows us to retype `param_2` as [PARTITION_STYLE](https://docs.microsoft.com/nl-nl/windows/win32/api/winioctl/ne-winioctl-partition_style). It's worth noting that the return type of this function is either `MBR`, `GPT` or `RAW`.
+
+Back in `FUN_100014a9` we retype `local_8` to be of `PARTITION_STYLE` too. This clears up the decompilation a lot and Ghidra also nicely figures out the enum constants for our next if statement.
+
+```cpp
+if ((-1 < (int)status_code) &&
+   (status_code = get_drive_partition_style(&local_19c,(PARTITION_STYLE)&local_8),
+   -1 < (int)status_code)) {
+  if (local_8 == PARTITION_STYLE_MBR) {
+    status_code = FUN_10001424(local_90,0x3c); 
+```
+
+So we only consider drives with a `MBR`. It's also worth noting that `local_19c` is now revealed to be a drive path meaning we can revisit `FUN_10001038` some time.
 
 
 
