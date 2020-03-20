@@ -2279,7 +2279,80 @@ if ((-1 < (int)status_code) &&
     status_code = FUN_10001424(local_90,0x3c); 
 ```
 
-So we only consider drives with a `MBR`. It's also worth noting that `local_19c` is now revealed to be a drive path meaning we can revisit `FUN_10001038` some time.
+So we only consider drives with a `MBR`. It's also worth noting that `local_19c` is now revealed to be a drive path meaning we can revisit `FUN_10001038` some time. First we will look at `FUN_10001424` on the next line however.
+
+### FUN_10001424
+
+```cpp
+DWORD FUN_10001424(BYTE *param_1,DWORD param_2){
+  BOOL BVar1;
+  HCRYPTPROV local_8;
+  
+  local_8 = 0;
+  BVar1 = CryptAcquireContextA(&local_8,(LPCSTR)0x0,(LPCSTR)0x0,1,0xf0000000);
+  if (BVar1 == 0) {
+    status_code = GetLastError();
+    if (0 < (int)status_code) {
+      status_code = status_code & 0xffff | 0x80070000;
+    }
+    if ((int)status_code < 0) goto LAB_1000148c;
+  }
+  BVar1 = CryptGenRandom(local_8,param_2,param_1);
+  if ((BVar1 == 0) && (status_code = GetLastError(), 0 < (int)status_code)) {
+    status_code = status_code & 0xffff | 0x80070000;
+  }
+LAB_1000148c:
+  if (local_8 != 0) {
+    CryptReleaseContext(local_8,0);
+  }
+  return status_code;
+}
+```
+
+This appears to be a crypto function. Assuming no errors cause the subroutine to short circuit a seemingly important call to [CryptGenRandom](https://docs.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenrandom) is made. This function generates crypto graphically secure random bytes. This means we can do some renaming.
+
+```cpp
+DWORD gen_sec_random_bytes(BYTE *sec_ran_bytes,DWORD len){
+  BOOL success;
+  HCRYPTPROV crypto_provider;
+  
+  crypto_provider = 0;
+  success = CryptAcquireContextA(&crypto_provider,(LPCSTR)0x0,(LPCSTR)0x0,1,0xf0000000);
+  if (success == 0) {
+    status_code = GetLastError();
+    if (0 < (int)status_code) {
+      status_code = status_code & 0xffff | 0x80070000;
+    }
+    if ((int)status_code < 0) goto LAB_1000148c;
+  }
+  success = CryptGenRandom(crypto_provider,len,sec_ran_bytes);
+  if ((success == 0) && (status_code = GetLastError(), 0 < (int)status_code)) {
+    status_code = status_code & 0xffff | 0x80070000;
+  }
+LAB_1000148c:
+  if (crypto_provider != 0) {
+    CryptReleaseContext(crypto_provider,0);
+  }
+  return status_code;
+}
+```
+
+### Back to FUN_100014a9
+
+Back in `FUN_100014a9` we then see that `0x3c` random bytes get loaded into `local_90` meaning we can do some renaming.
+
+After doing so we continue and see an interesting snippet.
+
+```cpp
+uVar8 = 0;
+do {
+  uVar6 = uVar8 + 1;
+  local_54[uVar8] =
+        "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+       [(uint)sec_random_bytes[uVar8] % 0x3a];
+   uVar8 = uVar6;
+} while (uVar6 < 0x3c);
+```
 
 
 
