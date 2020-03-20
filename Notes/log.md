@@ -2594,56 +2594,64 @@ On close inspection it's actually the exact same function that was unrecognized 
 
 Mostly this isn't very understandable. However at the end we have some clearly readable text. Given that we know NotPetya changes the boot loader to show a custom screen and that the text here matches that screen. Then we are most likely looking at the boot loader payload, meaning that the part above the plain text is likely code. The fully message then reads.
 
-> Repairing file system on C: 
-> The type of the file system is NTFS
-> One of your disks contains errors and needs to be repaired. This process
-> may take several hours to complete. It is strongly recommended to let it
-> complete.
-> 
-> WARNING: DO NOT TURN OFF YOUR PC! IF YOU ABORT THIS PROCESS, YOU COULD
-> DESTROY ALL OF YOUR DATA! PLEASE ENSURE THAT YOUR POWER CABLE IS PLUGGED
-> IN!
+```
+Repairing file system on C:    
+The type of the file system is NTFS    
+One of your disks contains errors and needs to be repaired. This process    
+may take several hours to complete. It is strongly recommended to let it    
+complete.
 
-The remainder of the text seems to be unrelate to the main text and just internal strings that are used.
+WARNING: DO NOT TURN OFF YOUR PC! IF YOU ABORT THIS PROCESS, YOU COULD    
+DESTROY ALL OF YOUR DATA! PLEASE ENSURE THAT YOUR POWER CABLE IS PLUGGED    
+IN!
+```
 
-> CHKDSK is repairing sector
-> Please reboot your computer!
-> Decrypting sector
+The remainder of the text seems to be unrelated to the main text and just internal strings that are used.
+
+```
+CHKDSK is repairing sector    
+Please reboot your computer!    
+Decrypting sector    
+```
 
 The randsom demand text is also present.
 
-> Ooops, your important files are encrypted.
-> If you see this text, then your files are no longer accessible, because they
-> have been encrypted.  Perhaps you are busy looking for a way to recover your
-> files, but don't waste your time.  Nobody can recover your files without our
-> decryption service.
-> 
-> We guarantee that you can recover all your files safely and easily.   All you
-> need to do is submit the payment and purchase the decryption key.
-> 
-> Please follow the instructions:
-> 
-> 1. Send $300 worth of Bitcoin to following address:
-> 
-> 
-> 
-> 
-> 2. Send your Bitcoin wallet ID and personal installation key to e-mail
->    wowsmith123456@posteo.net. Your personal installation key:
-> 
-> 
-> 
-> If you already purchased your key, please enter it below
-> Key: 
+```
+Ooops, your important files are encrypted.    
+If you see this text, then your files are no longer accessible, because they    
+have been encrypted.  Perhaps you are busy looking for a way to recover your    
+files, but don't waste your time.  Nobody can recover your files without our    
+decryption service.    
+
+We guarantee that you can recover all your files safely and easily.   All you    
+need to do is submit the payment and purchase the decryption key.
+
+Please follow the instructions:
+
+1. Send $300 worth of Bitcoin to following address:
+
+
+
+
+2. Send your Bitcoin wallet ID and personal installation key to e-mail    
+   wowsmith123456@posteo.net. Your personal installation key:
+
+
+
+If you already purchased your key, please enter it below    
+Key:
+``` 
 
 Then finally there are some more strings.
 
-> Incorrect key! Please try again
-> of
-> (%)
-> -
-> - 
-> ERROR!
+```
+Incorrect key! Please try again
+of
+(%)
+-
+- 
+ERROR!
+```
 
 Some things are missing however the idea is clear. The bitcoin address and personal key will likely be substituted in in the part of the code we will look at next. Analyzing this custom boot loader seems like a task beyond our current capabilities and time frame however.
 
