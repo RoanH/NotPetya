@@ -2515,10 +2515,138 @@ local_c = (undefined4 *)(*_DAT_1001b104)(0x200);
 
 First we see another `8` secure random bytes being generated.
 
+Next we see a bitcoin address string being copied into `local_373`
 
+Next we see a loop that determines the length of `random_sec_string`. This value seems to be capped at `0x156` and then used to copy a number of bytes from `random_sec_string` into `local_2f3`. This string is consequently `NUL` terminated.
 
+The last line makes no sense to me, but in Assembly looks similar to a subroutine call. Doing some more digging in the assembly reveals that this is a function call, but it's odd.
 
-TODO
+```cpp
+void FUN_10001000(SIZE_T param_1){
+  HANDLE hHeap;
+  DWORD dwFlags;
+  
+  dwFlags = 8;
+  hHeap = GetProcessHeap();
+  HeapAlloc(hHeap,dwFlags,param_1);
+  return;
+}
+```
+
+The function has a ton of references and all of them expect a return type. Yet there is none. Changing the subroutine signature allows Ghidra to figure out the details.
+
+```cpp
+LPVOID allocate_memory(SIZE_T num_bytes){
+  HANDLE hHeap;
+  LPVOID pvVar1;
+  DWORD dwFlags;
+  
+  dwFlags = 8;
+  hHeap = GetProcessHeap();
+  pvVar1 = HeapAlloc(hHeap,dwFlags,num_bytes);
+  return pvVar1;
+}
+```
+
+Going back to the main logic the else branch contains a snippet of interesting code.
+
+```cpp
+iVar11 = 0x80;
+puVar9 = &DAT_10018c50;
+puVar10 = alloc_mem_512;
+while (iVar11 != 0) {
+  iVar11 = iVar11 + -1;
+  *puVar10 = *puVar9;
+  puVar9 = puVar9 + 1;
+  puVar10 = puVar10 + 1;
+}
+status_code = 0;
+```
+
+We see the first `0x80` bytes of `DAT_10018c50` being copied into `allocated_mem_512` which was just allocated. Using Ghidra we see that there is data stored at `DAT_10018c50`.
+
+> fa 31 c0 8e d8 8e d0 8e c0 8d 26 00 7c fb 66 b8 20 00 00 00 88 16 93 7c 66 bb 01 00 00 00 b9 00 80 e8 14 00 66 48 66 83 f8 00 75 f5 66 a1 00 80 ea 00 80 00 00 f4 eb fd 66 50 66 31 c0 52 56 57 66 50 66 53 89 e7 66 50 66 53 06 51 6a 01 6a 10 89 e6 8a 16 93 7c b4 42 cd 13 89 fc 66 5b 66 58 73 08 50 30 e4 cd 13 58 eb d6 66 83 c3 01 66 83 d0 00 81 c1 00 02 73 07 8c c2 80 c6 10 8e c2 5f 5e 5a 66 58 c3 60 b4 0e ac 3c 00 74 04 cd 10 eb f7 61 c3
+
+It's not ASCII however most likely (dot is unrecognized).
+
+> . 1 . . . . . . . . & . | . f .   . . . . . . | f . . . . . . . . . . . f H f . . . u . f . . . . . . . . . . . f P f 1 . R V W f P f S . . f P f S . Q j . j . . . . . . | . B . . . . f [ f X s . P 0 . . . X . . f . . . f . . . . . . . s . . . . . . . . _ ^ Z f X . ` . . . < . t . . . . . a .
+
+We will rename some fields though.
+
+Next we see another `status_code` check followed by something that appears to also be an unrecognized function call.
+
+```cpp
+if (-1 < (int)status_code) {
+  partition_style = (*_DAT_1001b104)(0x22b1);
+  if ((void *)partition_style == (void *)0x0) {
+    status_code = 0x8007000e;
+  }
+  else {
+    local_10 = 0x22b1;
+    memcpy((void *)partition_style,&DAT_10018e50,0x22b1);
+    status_code = 0;
+  }
+```
+
+On close inspection it's actually the exact same function that was unrecognized earlier. This time however `0x22b1` or `8881` bytes are allocated. If this worked then `local_10` is assigned the value of `0x22b1` too and `DAT_10018e50` is copied to the allocated memory. It seems like a good idea to inversitage this data field next. Adding the length to the base we find that we are interested in data range `10018e50~1001B101`.
+
+> ....U...F..N....N.u..F...]...S.....F..f....F.....[]...2...........U..SV.F...u..N..F.3......F......8...^..V..F...........u......f...F.....r.;V.w.r.;F.v.N3..^[]....U..S.F...u..N..F.3....F.....3..E...^..V..F...........u......f...f...r.;V.w.r.;F.v.+F..V.+F..V........[]...2..............$..Vh.....[j.j.j.j ....P.F.P. ......t....^.......f+.f......f....f.... s....................f+.f......f....f.... s.j.j.j.j ....P.F.P........j.j.j.j!....P.N.Q......j.h......Pj.j...!.Q....R......j.j.j.j!....P.F.P.k....j.hR...!.P....P.v........;...^..j..9.[hp....[.....Vj.j.j.j ....P.F.P.!....j.h..f.v..v..M....j.j.j.j"....P.F.P......f.F.....f.~.....s..v......f.F...j.j.j.j.....P.F.P.......s.^...D..WV.~. s.2..o..F...v......B...F..~. r.2..F..F..v..L.~. wN2..F..F..~..s..^.*..>.....^.:.t..F....F...~..u..^.*....~......C..F..F..F.8F.r.j.j .F.P.F.P.......F..j.j .F.PP.......F..~..r.j.j.j.j ....P.F.P......j.j.j.j!....P.N.Q......j.h......Pj.j.....P.F.P......f+.f.F.f.~.....s..v..........f.F........f.F.....f.~..s..v..B.....f.F...j.j.j.j ....P.F.P.Z....h.....[....P.F.P.F.P.v.........^_...L..WV...j.j.j.j ....P.F.P......h.....[jPj.......h.....[....P.x.[h...q.[....P.h.[h...a.[..].P.>.[hl..Q.[...hq..G.[.v.h...=.[.F...~......C...F..~.Jr.jI.F.P......P.F.P.F.PV........t.h.....[..^_.......V.B..U...z.P.i.[..u....^..f+.f.F..F..F..U.F..V..v........9R.r.w.9.~.v..v........f..~.f.F..v..........{..u..v..........z..F..F..v..........|..t..~..t.j.j.j.j ..z.P.F.P........t..a...z..r..F.P..z.P.t....^...F.Pf.v...z.P.R....^..U......F............V.v....F.P...[..F...u.^.......WV3.f.~..r/f.F.f.....f3.f..f...0.B.Ff.F.f.....f3.f..f.F...j.j.f.v..]..0.B.....N.C.P.x.[..}.^_...U..V.v....F.P.^.[..N....^...h...\.[.U..h...Q.[.v..J.[h...C.[f.v..Y...h...3.[f.v..I...h...#.[f.F.f.d...f..f3.f.v.fP.'...h.....[......V3..F.../.d..L.;.v....~..u.......P...[.~.......F......t.j../.[^...U...F.P. .[j j .(...h.....[j.j .....h.....[j.j .....h...~.[j.j .....h...n.[j.j .....h...^.[j.j .....h...N.[j.j .....h(..>.[j.j .....hF....[j.j .....hd....[j.j .....h.....[j.j .....h.....[j.j .x...h.....[j.j .h...h.....[j j .X...h.....[j.j .H...h.....[j.j .8...h.....[j.j .(...hF....[j.j .....hn....[j.j .....h...~.[j.j .....h...n.[j.j .....h...^.[j.j .....h...N.[j.j .....h*..>.[j.j .....hT....[j.j .....h|....[.......WV.v..F...h.....[.~..6..P...[.....+.....u 8l.t.h.....[...<.+.....u.h.....[GF.<.u.^_...U...$.h.....[.<.....U..............&......j....[..U...~.3..O......2.3.......j....[.......!...t......F..f..~..t..^..F....F........F......t..F...F....U...~. r..~.~w.....2........V.F...........a.F.P...[.F..~..tXP...[..t..F..^..v...P...[.2.~..u,2..^..v......G..F.P.F....[j ...[.F.P...[.n...F..F.9F.r...&.....F.^............V..F.......WV2..F..F..F..v...2..^.*.......G..G...f.G......F..~..r..F...F.P.F...P............j.j.j.j.....P.F...P........u.f.F..........F..~.U.t.....F...~............f....f....f.F..V.f;F.v..F..V..F..~..r..^.*.....@...F...~..s&.^.*...........8...u..F....^.*.....@...^.*.......G...F.....f.F.f.G..F..F...F..~.......F.^_.........V......f..n..N..v...~..u%.F.%......N.*....^.@...F....G..F.$?...^.2......G..G..F.......WV.^.....G...F..G.....v...f.f..~....$..C.F..F...F....U.V..v..f.2...s..f..~..u..F...~..t..N.u..F.^_.......F..F..F...f.F.....f.F..V.f.F..F.P.v.f.v.R.v..F.P.F.P.\.......WV.~..uX.F...v..^.*.....x..uCf.F.....f.~.....s..~......f.F...j.j.j.j#....P.^.*......P.f.....F....F......F.P.^.*.....v...P.n..........f+.f.F.f.F..v..~.f.~.......^.....F...f.?.tyj.j..^.....F...f.7....P...^.*......Q...............F.PWf.v..F.Pf........*.j.PfXfYf......f..fP....Pf.7......P.'....f.F..m..F..v.........^..x....&.^_.... ..WVj.j.f.v.....P.F.P.^....f.F.8............F..V....F.t1.~...u...t&.~..u....t..v.f....f.F..F..............v............V.-......F..V.f.F.@.~..v.f.F.f9F...!..^...........$..F.....N..F...^.*..F.....2....^......F..~..r..F....^.*....^..........V........F..F.8F.w..F...#.^.*..F.*....^............V......F..F.8F.w.f.v..F.*.+.RP........fXfYf..f.F.f. ...f.F.f....f.f.f- ...f.F..V.f=....t*.F.P.v.VW.v..F.Pf.v.f.v.R.v.f.v..F.P.......F.*..N.*...@..F..V....^_....B..WVj.j.j.j#.....F.P.F.P.......~ .u.f.........f.F......~.f.F..V.f9F......F.?u.RPf.v..v.......j.j.f.F.f.F.fP....P.F.P.;.....v..~ .uQj.h......P.N..V..N..V.RQW.v..........F....j.j.f........P.F.P......f..f..f9...........F........I........L........Eu{.....F..F...f....f.F.f.F.....f.~..tWf.~.....sM.^.......f..f.F..^.......f....f..f.F.f....0.....^...(....?.t..^...*....?$..]..~ .ugj.h......P.N..V..N..V.RQW.v..........R....j.j.f........P.F.P....^....f..f..f....j.j.j.j#....P.F.P......f.F...S.f.~..........^........?.ucf.F.f.F.f-....f.F..N..........N..F.......N..F.f.F.f9F.w+f.F.f9F.s!.^...........$..F.....N.<.w....v..h..F...^.*..F.....2....^......F..~..r..F....^.*....^..........V........F..F.8F.w..F...#.^.*..F.*....^............V......F..F.8F.w.f.v..F.*.+.RP........fXfYf..f.F.f....f.f.f.F.f.F.f.~......f.~..v.f.F.....f.F..V.f9F.v{j..F.Pf.v.....Q.V.R.....\....f.F.f...fP....Pf.v.W.v..}....j.....f.v.....P.F.P.&....f...~ .u.f..f....j.j.j.j#....P.F.P.......F.*..N.*...@..F..V..j.f.F.f.F..:.^_.......WVj.j.j.j"....P.F.P........t.2....3........C....r.3..~..........f+.f..f.D.C...r.3..F.....sU......F......F.<.t><.t:<.u0......F........W..^.*.......Q....^...f......f.O..F.F...F...~..u.3....s........f+.f..f.D.C....^_.......WV.v..F..V.. ..*..v.........F..V....N..........^_...U..WV.~..v.j....^..U....W.RP......1.1T.j....^..T....W.RP....^....1.1W.j.f..f..fP.u....1.1U.j....^..U....W.RP.Y..^....1.1W.^_..U..V.v..D.P.D.P.D.PV.k.....D.P.D.P.D.P.D.P.U.....D$P.D P.D,P.D(P.?.....D8P.D4P.D0P.D<P.)....^...U..V.v..D0P.D P.D.PV.......D.P.D4P.D$P.D.P.......D.P.D.P.D8P.D(P.......D,P.D.P.D.P.D<P......^...U..V.v.V...[V.0.[^..U..V.v.*..D........d.*...........d....*..........*......^...U..V.v..F....F..V.......D..F..D..F..D.^.......WV3..~..1.........P..~..|.[.N...~......W.....~..N......W.F...|.3..F.P.:.[F...|.3.......F.....f...^...f..f.7..Q.a....F...|.^_......WV.F.1.F.n.F.v.F.a.F.l.F.d.F. .F.s.F.3.F.c.F.t.-.F..F..i.F..F..F.d3.3..~...................F......^...F.....|......@|.3..V..~..N.........P.^.X.....G....^..F..G..^..G,.....^.F.G....|.R...[^_....T..WV3..F.....~......9F.t..v...t..~...u.....F..F.f.~..s..^....N.....f.F....v..F.?t#f.F.f...fP.F.P.+.....F.P.F.PV......f.F.....f.F.f9F.sL.F..F..?u'f.F.f.F.f...fP.F.P.......F.P.F.PV.......^..^...?.F......^.0.f.F...3......^_..U...F....N....2N...2N...2N..........U...F.....N.......F.....N......2.$32..V...........2.$U2....&..Vf.F.....f.~."s..v..B..f.F...f.F.....f.~.....s[.F..V.........N............t8f.F.f.D...f..f.....f3.f..f......f..f..f...............Z.f.F......$..F.f.F.....f.~."s..v..B.....f.F...^.......F...F.0...P...[0....F.P...[.F.f.F.....f.~."s1.^.......................*.........^.......f.F.......~..u.......Vf.F......v.f.F..V.f9F.s..^...0......G.0....`.f.F....9F.u.9V.u..6......^...0....6....7.f.F......v.f.~. s..^............G....f.F....^.....1........3D..h..&..................0123456789abcdef....   Repairing file system on C: ....   The type of the file system is NTFS...   One of your disks contains errors and needs to be repaired. This process..   may take several hours to complete. It is strongly recommended to let it..   complete.....   WARNING: DO NOT TURN OFF YOUR PC! IF YOU ABORT THIS PROCESS, YOU COULD..   DESTROY ALL OF YOUR DATA! PLEASE ENSURE THAT YOUR POWER CABLE IS PLUGGED..   IN!......   CHKDSK is repairing sector..Please reboot your computer!.. Decrypting sector...... Ooops, your important files are encrypted...... If you see this text, then your files are no longer accessible, because they.. have been encrypted.   Perhaps you are busy looking for a way to recover your.. files, but don't waste your time.   Nobody can recover your files without our.. decryption service..... We guarantee that you can recover all your files safely and easily.   All you.. need to do is submit the payment and purchase the decryption key..... Please follow the instructions:.... 1. Send $300 worth of Bitcoin to following address:..       ..       ...       ..... 2. Send your Bitcoin wallet ID and personal installation key to e-mail..       wowsmith123456@posteo.net. Your personal installation key:.......... If you already purchased your key, please enter it below.... Key: ... Incorrect key! Please try again...... . of . (.%)                       .       .-...       .............................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................       ..-.ERROR!.
+
+Mostly this isn't very understandable. However at the end we have some clearly readable text. Given that we know NotPetya changes the boot loader to show a custom screen and that the text here matches that screen. Then we are most likely looking at the boot loader payload, meaning that the part above the plain text is likely code. The fully message then reads.
+
+> Repairing file system on C: 
+> The type of the file system is NTFS
+> One of your disks contains errors and needs to be repaired. This process
+> may take several hours to complete. It is strongly recommended to let it
+> complete.
+> 
+> WARNING: DO NOT TURN OFF YOUR PC! IF YOU ABORT THIS PROCESS, YOU COULD
+> DESTROY ALL OF YOUR DATA! PLEASE ENSURE THAT YOUR POWER CABLE IS PLUGGED
+> IN!
+
+The remainder of the text seems to be unrelate to the main text and just internal strings that are used.
+
+> CHKDSK is repairing sector
+> Please reboot your computer!
+> Decrypting sector
+
+The randsom demand text is also present.
+
+> Ooops, your important files are encrypted.
+> If you see this text, then your files are no longer accessible, because they
+> have been encrypted.  Perhaps you are busy looking for a way to recover your
+> files, but don't waste your time.  Nobody can recover your files without our
+> decryption service.
+> 
+> We guarantee that you can recover all your files safely and easily.   All you
+> need to do is submit the payment and purchase the decryption key.
+> 
+> Please follow the instructions:
+> 
+> 1. Send $300 worth of Bitcoin to following address:
+> 
+> 
+> 
+> 
+> 2. Send your Bitcoin wallet ID and personal installation key to e-mail
+>    wowsmith123456@posteo.net. Your personal installation key:
+> 
+> 
+> 
+> If you already purchased your key, please enter it below
+> Key: 
+
+Then finally there are some more strings.
+
+> Incorrect key! Please try again
+> of
+> (%)
+> -
+> - 
+> ERROR!
+
+Some things are missing however the idea is clear. The bitcoin address and personal key will likely be substituted in in the part of the code we will look at next. Analyzing this custom boot loader seems like a task beyond our current capabilities and time frame however.
+
 
 
 
