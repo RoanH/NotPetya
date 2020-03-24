@@ -2170,6 +2170,7 @@ DWORD FUN_10001038(char *param_1){
   }
   return DVar3;
 }
+```
 
 Surprisingly, this function is rather long too. After some initial setup we again see a familiar call to `CreateFileA` in combination with `DeviceIoControl`. We also see a call to `GetSystemDirectoryA` to get the system directory. However the passed `local_270` is defintely not the correct parameter to pass here. It is also indicated that a buffer of size `0x104` was supposed to be passed. Looking at the local variables it is likely that `local_26f` will store this path. The size however does not match up. Most likely the byte of `local_270` has to be joined to this range of memory freeing up 4 bytes for most likely a `DWORD` type or similar later on.
 
@@ -2706,7 +2707,9 @@ uVar8 = local_14 >> 9;
 DVar5 = 0;
 ```
 
+The first thing we see is an other copy operation that moves the first `128` bytes from `alloc_mem_512_with_unknown_data_128` to `puVar12` this essentially equates to the `unknown_data_128` part of the buffer.
 
+Next we see a very specific assignment of `local_3e0` to `puVar9[0x6e]` which is index `110`. 
 
 
 
