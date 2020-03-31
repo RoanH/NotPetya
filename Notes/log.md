@@ -2955,6 +2955,102 @@ iVar8 = (uint)local_14.wMinute + (uVar1 + 3) % 0x3c;
 
 For the hours field the value is first converted from minutes to hours using `0x3c` (`60`). Both values are kept within bounds using a modulus operating with `0x18` (`24`) and `0x3c` (`60`) respectively.
 
+Next we see a calls to [GetSystemDirectoryW](https://docs.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsystemdirectoryw) to get the system directory path (generally `C:\Windows\System32`).
+
+Next we see a call to [PathAppendW](https://docs.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathappendw) being used to extend this path with the string `shutdown.exe /r /f` resulting in `C:\Windows\System32\shutdown.exe /r /f`.
+
+If not errors occurred we see a call to `FUN_10008494`.
+
+### FUN_10008494
+
+```cpp
+undefined4 FUN_10008494(void){
+  BOOL BVar1;
+  undefined4 uVar2;
+  _OSVERSIONINFOW local_118;
+  
+  uVar2 = 0;
+  memset(&local_118,0,0x114);
+  local_118.dwOSVersionInfoSize = 0x114;
+  BVar1 = GetVersionExW((LPOSVERSIONINFOW)&local_118);
+  if ((BVar1 != 0) && (5 < local_118.dwMajorVersion)) {
+    uVar2 = 1;
+  }
+  return uVar2;
+}
+```
+
+This function appears mostly centered around the call to [GetVersionExW](https://docs.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getversionexw). Assuming that NotPetya is manifested for a specific operating system this gets the version that the application is manifested for. Otherwise it returns the OS version value. Though in either case the comparison right after it checks for a value greater than 5 for the major version. This targets all OS versions Windows 8 and up as Windows 8 has major version number 6. So lets rename the function to `running_win_8_or_higher`.
+
+### Back to FUN_100084df
+
+Judging by how the return value of the function call is used there is separate logic for old and new versions of Windows. However the logic for old versions seems to consist of just calling [wsprintfW](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-wsprintfw) to format a time string of the format `at hh:mm C:\Windows\System32\shutdown.exe /r /f` the value of which is stored in `local_e2c`.
+
+For newer version there seems to be more going on. First of all a check is made for the permission `4` which was `SeTcbPrivilege` going by the following [SO answer](https://stackoverflow.com/questions/5294171/when-is-setcbprivilege-used-act-as-part-of-the-operating-system) this allows you to run tasks as any user. This by extensions makes the line above the if statement make more sense. So if this permission is granted the tasks that will be scheduled later will be executed as the `SYSTEM` account.
+
+Next a string is printed again of the format `schtasks /RU "SYSTEM" /Create /SC once /TN "" /TR "C:\Windows\System32\shutdown.exe /r /f" /ST hh:mm`.
+
+Both of these strings represent a forceful reboot of the system at the generated time.
+
+Finally we see a call being made to `FUN_100083bd`.
+
+### FUN_100083bd
+
+```cpp
+BOOL FUN_100083bd(int param_1){
+  int in_EAX;
+  DWORD DVar1;
+  UINT UVar2;
+  LPWSTR pWVar3;
+  _PROCESS_INFORMATION *p_Var4;
+  _STARTUPINFOW *p_Var5;
+  BOOL BVar6;
+  int iVar7;
+  WCHAR local_e70 [1024];
+  WCHAR local_670 [780];
+  _STARTUPINFOW local_58;
+  _PROCESS_INFORMATION local_14;
+  
+  wsprintfW(local_e70,L"/c %ws");
+  *(undefined2 *)(in_EAX + 0x7fe) = 0;
+  DVar1 = GetEnvironmentVariableW(L"ComSpec",local_670,0x30c);
+  if (DVar1 == 0) {
+    UVar2 = GetSystemDirectoryW(local_670,0x30c);
+    if (UVar2 == 0) {
+      return 0;
+    }
+    pWVar3 = lstrcatW(local_670,L"\\cmd.exe");
+    if (pWVar3 == (LPWSTR)0x0) {
+      return 0;
+    }
+  }
+  iVar7 = 0x10;
+  p_Var4 = &local_14;
+  do {
+    *(undefined *)&p_Var4->hProcess = 0;
+    p_Var4 = (_PROCESS_INFORMATION *)((int)&p_Var4->hProcess + 1);
+    iVar7 = iVar7 + -1;
+  } while (iVar7 != 0);
+  iVar7 = 0x44;
+  p_Var5 = &local_58;
+  do {
+    *(undefined *)&p_Var5->cb = 0;
+    p_Var5 = (_STARTUPINFOW *)((int)&p_Var5->cb + 1);
+    iVar7 = iVar7 + -1;
+  } while (iVar7 != 0);
+  local_58.cb = 0x44;
+  BVar6 = CreateProcessW(local_670,local_e70,(LPSECURITY_ATTRIBUTES)0x0,(LPSECURITY_ATTRIBUTES)0x0,0
+                         ,0x8000000,(LPVOID)0x0,(LPCWSTR)0x0,(LPSTARTUPINFOW)&local_58,
+                         (LPPROCESS_INFORMATION)&local_14);
+  if (BVar6 != 0) {
+    Sleep(param_1 * 1000);
+  }
+  return BVar6;
+}
+```
+
+
+
 
 
 Memory:
