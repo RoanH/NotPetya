@@ -2855,9 +2855,11 @@ if (((-1 < (int)DVar5) &&
 From this we can infer that it writes to disk block `0x20` (recall that the argument is left shifted by `9` in the function), disk block `0x21` and disk block `0x22`. Unfortuantely though since all the assignments in this subroutine were giving Ghidra a rather hard time the exact implications are unknown and probably not worth looking into. Afterall, it is probably safe to say that this is the subroutine responsible for writing the custom boot loader to the disk, which is also how we will rename this function to `write_custom_bootloader`.
 
 ### Back to destroy_boot
+
 Returning back to the calling function we now have a better idea of the `destroy_boot` function too. It seems appropriate to change its name to also reflect the coordination of writing the custom bootloader, so we rename it to `destroy_boot_and_write_custom_bootloader`.
 
 ### Back again to Ordinal_1
+
 After all this we are back in Ordinal_1. The code context we are in is as follows.
 
 ```cpp
@@ -2919,9 +2921,39 @@ undefined4 FUN_100084df(void){
 }
 ```
 
+The subroutine stars with a call to [GetLocalTime](https://docs.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlocaltime) which gets the local date and time.
 
+This call is followed directly by a call to `FUN_10006973`.
 
+### FUN_10006973
 
+```cpp
+uint FUN_10006973(void){
+  DWORD DVar1;
+  uint uVar2;
+  
+  DVar1 = GetTickCount();
+  uVar2 = (uint)(((ulonglong)(DVar1 - millis_since_system_start) / 0x3c) / 1000);
+  return -(uint)(uVar2 < first_cmd_arg) & first_cmd_arg - uVar2;
+}
+```
+
+This function makes a call to [GetTickCount](https://docs.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-gettickcount) which returns the number of milliseconds elapsed since the system was started. The difference between this value and the similarly obtained value of `millis_since_system_start` gotten when the malware was initially started is then computed and divided by `0x3c` which is `60` followed by `1000`. This effectively makes `uVar2` the number of minutes the malware has been running for.
+
+The return value is weird however. The left side of the `&` results in either `-1` or `0`. While the right side. This effectively makes this statement a switch. Afterall, the value of `-1` written out in binary is all `1's` meaning a bit wise AND on it will keep all bits set in the other value. This means that the actual return value is the difference between `first_cmd_arg` and `uVar2` or `0` if `uVar2` is greater than `first_cmd_arg`. Renaming the function to `minutes_left_before_cmd_arg1_reached` seems fine.
+
+### Back to FUN_100084df
+
+Back to the calling function we then see that if less than `10` minutes are left the value is set to `10` minutes.
+
+Using this value we then see the `wHour` and `wMinute` field being set.
+
+```cpp
+uVar6 = ((uint)local_14.wHour + (uVar1 + 3) / 0x3c) % 0x18;
+iVar8 = (uint)local_14.wMinute + (uVar1 + 3) % 0x3c;
+```
+
+For the hours field the value is first converted from minutes to hours using `0x3c` (`60`). Both values are kept within bounds using a modulus operating with `0x18` (`24`) and `0x3c` (`60`) respectively.
 
 
 
