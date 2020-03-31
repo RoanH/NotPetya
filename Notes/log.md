@@ -2709,8 +2709,28 @@ DVar5 = 0;
 
 The first thing we see is an other copy operation that moves the first `128` bytes from `alloc_mem_512_with_unknown_data_128` to `puVar12` this essentially equates to the `unknown_data_128` part of the buffer.
 
-Next we see a very specific assignment of `local_3e0` to `puVar9[0x6e]` which is index `110`. 
+Next we see a very specific assignment of `local_3e4` to `puVar9[0x6e]` which is index `110`. After this we see a similar assignment but writing using pointer logic that assigns `local_3e0` to offset `0x6f` from `puVar9` which is index `111`. It is possible that these two assignments are somehow related. In particular it is odd that we are missing an assignment for these `local_` variables while they are being used here.
 
+Two similar assignment follow of `local_3de` to `puVar4` and again a pointer based assignment to offset `0x1be` from `puVar9` which is index `446` to `puVar7`.
+
+Going to the next instructions we see an other loop that runs for `4` iterations. and copies more data from `puVar4` to `puVar7`.
+
+Finally we see a copy of the previously constructed `partition_style_and_boot_screen` into `puVar9` at an offset of `0x80` or `128`.
+
+It seems like a lot of minor details were missing from all this logic. Mostly not having assignments for the local variables makes it hard to tell why exactly these copy operations were neccessary. A little bit further we see `puVar9` being passed for a function. But most likely this won't allow us to determine it's real type.
+
+Directly after the `memcpy` call we see a right shift of `9` on `local_14` with the result being assigned to `uVar8`. This value is then compared to `0`. This is just an error check and failing it will store an error code in `DVar5` and exit.
+
+Assuming success we end up in the `else` of this check with the following logic.
+
+```cpp
+do {
+  DVar5 = FUN_10001384(&drive_path,puVar9);
+  if ((int)DVar5 < 0) break;
+  uVar6 = uVar6 + 1;
+  puVar9 = puVar9 + 0x80;
+} while (uVar6 < uVar8);
+```
 
 
 
