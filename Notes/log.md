@@ -2992,7 +2992,7 @@ Next a string is printed again of the format `schtasks /RU "SYSTEM" /Create /SC 
 
 Both of these strings represent a forceful reboot of the system at the generated time.
 
-Finally we see a call being made to `FUN_100083bd`.
+Finally we see a call being made to `FUN_100083bd`. After assigning `0` to `local_62e` this sems to have no real purpose and it just so happens to be stored directly after our `WCHAR` buffer for the entire command and be of size 2. It is likely that we can jointhese two data types. Doing so seems to work correctly and reveals that the last character of the buffer is set to `\0` to terminate the string.
 
 ### FUN_100083bd
 
@@ -3048,6 +3048,87 @@ BOOL FUN_100083bd(int param_1){
   return BVar6;
 }
 ```
+
+This function appears to be fairly complex, unexpectedly so. The first line we see is:
+
+```cpp
+wsprintfW(local_e70,L"/c %ws");
+```
+
+This however, makes no sense, the format string specified here has one variable in it and this variable is not provided. Therefore we will start be changing the entire signature for the call.
+
+Doing this reveals a lot of, expected information.
+
+```cpp
+wsprintfW(local_e70,L"/c %ws",in_EAX);
+in_EAX[0x3ff] = L'\0';
+```
+
+The type of `in_EAX` was respecified as a wide character pointer. Although we did not confirm it, the string used here is most likely the schedule task command from the calling function which would otherwise go unused. 
+
+Next we see the value of the `ComSpec` environment variable being retried and stored in `local_670` using a call to [GetEnvironmentVariableW](https://docs.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-getenvironmentvariablew). Normally this gets the command line interpreter on Windows. If this failed a call is made to get the system directory and a concatenation with `\\cmd.exe`.
+
+After a reference for some commandline interpreter has been obtained a new process is started using [CreateProcessW](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw). This process simply executes the final command string.
+
+After all this the thread is put to sleep by the number of seconds specified in the function call. From the calling function we came from this value is `0`.
+
+So in effect, all this function does is execute the given commandline task. So we can rename the subroutien to `execute_command`.
+
+### Back to FUN_100084df
+
+Given everything we've renamed the function now looks like the following:
+
+```cpp
+undefined4 FUN_100084df(void)
+
+{
+  uint minutes_left;
+  UINT success;
+  BOOL success2;
+  int win8up;
+  wchar_t *user;
+  uint hour;
+  undefined4 ret_val;
+  int minute;
+  WCHAR schedule_cmd [1024];
+  WCHAR sys_dir [780];
+  _SYSTEMTIME time;
+  
+  ret_val = 0;
+  GetLocalTime((LPSYSTEMTIME)&time);
+  minutes_left = minutes_left_before_cmd_arg1_reached();
+  if (minutes_left < 10) {
+    minutes_left = 10;
+  }
+  hour = ((uint)time.wHour + (minutes_left + 3) / 0x3c) % 0x18;
+  minute = (uint)time.wMinute + (minutes_left + 3) % 0x3c;
+  success = GetSystemDirectoryW(sys_dir,0x30c);
+  if (success != 0) {
+    success2 = PathAppendW(sys_dir,L"shutdown.exe /r /f");
+    if (success2 != 0) {
+      win8up = running_win_8_or_higher();
+      if (win8up == 0) {
+        wsprintfW(schedule_cmd,L"at %02d:%02d %ws",hour,minute,sys_dir);
+      }
+      else {
+        user = L"/RU \"SYSTEM\" ";
+        if (((byte)granted_privileges & 4) == 0) {
+          user = L"";
+        }
+        wsprintfW(schedule_cmd,L"schtasks %ws/Create /SC once /TN \"\" /TR \"%ws\" /ST %02d:%02d",
+                  user,sys_dir,hour,minute);
+      }
+      schedule_cmd[1023] = L'\0';
+      ret_val = execute_command(0);
+    }
+  }
+  return ret_val;
+}
+```
+
+And it's purpose is just to schedule a reboot of the system at a time in the future. So we'll rename the function to `schedule_reboot`.
+
+### Back to Ordinal_1
 
 
 
