@@ -3130,6 +3130,51 @@ And it's purpose is just to schedule a reboot of the system at a time in the fut
 
 ### Back to Ordinal_1
 
+The next thing we see a a thread being started that runs `FUN_10007c10`.
+
+```cpp
+CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,FUN_10007c10,(LPVOID)0x0,0,(LPDWORD)0x0);
+```
+
+### FUN_10007c10
+
+```cpp
+void FUN_10007c10(void){
+  bool bVar1;
+  LPVOID lpParameter;
+  BOOL BVar2;
+  WCHAR local_210 [260];
+  DWORD local_8;
+  
+  lpParameter = critical_section_no_extra_debug;
+  possible_lock_and_wait_check_args(critical_section_no_extra_debug);
+  possible_lock_and_wait_check_args(lpParameter);
+  local_8 = 0x104;
+  BVar2 = GetComputerNameExW(ComputerNamePhysicalNetBIOS,local_210,&local_8);
+  if (BVar2 != 0) {
+    possible_lock_and_wait_check_args(lpParameter);
+  }
+  CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,FUN_10008e7f,lpParameter,0,(LPDWORD)0x0);
+  bVar1 = false;
+  do {
+    FUN_1000777b(lpParameter);
+    FUN_1000786b(lpParameter);
+    if (!bVar1) {
+      FUN_1000795a(lpParameter,0x80000000,0);
+      bVar1 = true;
+    }
+    Sleep(180000);
+  } while( true );
+}
+```
+
+
+
+
+
+
+
+
 
 
 
