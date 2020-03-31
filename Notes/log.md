@@ -2852,7 +2852,73 @@ if (((-1 < (int)DVar5) &&
                  ff ff
 ```
 
-From this we can infer that it writes to disk block `0x20` (recall that the argument is left shifted by `9` in the function), disk block `0x21` and disk block `0x22`. Unfortuantely though since all the assignments in this subroutine were giving Ghidra a rather hard time the exact implications are unknown and probably not worth looking into. Afterall, it is probably safe to say that this is the subroutine responsible for writing the custom boot loader to the disk, which is also how we will rename this function.
+From this we can infer that it writes to disk block `0x20` (recall that the argument is left shifted by `9` in the function), disk block `0x21` and disk block `0x22`. Unfortuantely though since all the assignments in this subroutine were giving Ghidra a rather hard time the exact implications are unknown and probably not worth looking into. Afterall, it is probably safe to say that this is the subroutine responsible for writing the custom boot loader to the disk, which is also how we will rename this function to `write_custom_bootloader`.
+
+### Back to destroy_boot
+Returning back to the calling function we now have a better idea of the `destroy_boot` function too. It seems appropriate to change its name to also reflect the coordination of writing the custom bootloader, so we rename it to `destroy_boot_and_write_custom_bootloader`.
+
+### Back again to Ordinal_1
+After all this we are back in Ordinal_1. The code context we are in is as follows.
+
+```cpp
+  if ((granted_privileges & 2) != 0) {
+    create_c_windows_file_or_exit();
+    destroy_boot_and_write_custom_bootloader();
+  }
+  FUN_100084df();
+```
+
+This means that `FUN_100084df` is next up in our investigation.
+
+### FUN_100084df
+
+```cpp
+undefined4 FUN_100084df(void){
+  uint uVar1;
+  UINT UVar2;
+  BOOL BVar3;
+  int iVar4;
+  wchar_t *pwVar5;
+  uint uVar6;
+  undefined4 uVar7;
+  int iVar8;
+  WCHAR local_e2c [1023];
+  undefined2 local_62e;
+  WCHAR local_62c [780];
+  _SYSTEMTIME local_14;
+  
+  uVar7 = 0;
+  GetLocalTime((LPSYSTEMTIME)&local_14);
+  uVar1 = FUN_10006973();
+  if (uVar1 < 10) {
+    uVar1 = 10;
+  }
+  uVar6 = ((uint)local_14.wHour + (uVar1 + 3) / 0x3c) % 0x18;
+  iVar8 = (uint)local_14.wMinute + (uVar1 + 3) % 0x3c;
+  UVar2 = GetSystemDirectoryW(local_62c,0x30c);
+  if (UVar2 != 0) {
+    BVar3 = PathAppendW(local_62c,L"shutdown.exe /r /f");
+    if (BVar3 != 0) {
+      iVar4 = FUN_10008494();
+      if (iVar4 == 0) {
+        wsprintfW(local_e2c,L"at %02d:%02d %ws",uVar6,iVar8,local_62c);
+      }
+      else {
+        pwVar5 = L"/RU \"SYSTEM\" ";
+        if (((byte)granted_privileges & 4) == 0) {
+          pwVar5 = L"";
+        }
+        wsprintfW(local_e2c,L"schtasks %ws/Create /SC once /TN \"\" /TR \"%ws\" /ST %02d:%02d",
+                  pwVar5,local_62c,uVar6,iVar8);
+      }
+      local_62e = 0;
+      uVar7 = FUN_100083bd(0);
+    }
+  }
+  return uVar7;
+}
+```
+
 
 
 
