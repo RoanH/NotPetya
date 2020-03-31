@@ -2732,11 +2732,127 @@ do {
 } while (uVar6 < uVar8);
 ```
 
+The general setup of this loop is clear. Presumably `FUN_10001384` does something with the first `0x80` bytes passed to it. The loop then just passes `puVar9` to this function in blocks of `0x80`. There is an upper bound on the number of iteration in the form of `uVar8` and the loop exits early when the return code from `FUN_10001384` is negative. This probably indicates an error state.
 
+###FUN_10001384
 
+DWORD FUN_10001384(LPCSTR param_1,LPCVOID param_2){
+  int in_EAX;
+  HANDLE hFile;
+  BOOL BVar1;
+  DWORD DVar2;
+  DWORD local_8;
+  
+  DVar2 = 0;
+  local_8 = 0;
+  if (param_1 == (LPCSTR)0x0) {
+    DVar2 = 0x80070057;
+  }
+  else {
+    hFile = CreateFileA(param_1,0xc0000000,3,(LPSECURITY_ATTRIBUTES)0x0,3,0,(HANDLE)0x0);
+    if (hFile == (HANDLE)0xffffffff) {
+      DVar2 = GetLastError();
+      if (0 < (int)DVar2) {
+        DVar2 = DVar2 & 0xffff | 0x80070000;
+      }
+    }
+    else {
+      BVar1 = SetFilePointerEx(hFile,(ulonglong)(uint)(in_EAX << 9),(PLARGE_INTEGER)0x0,0);
+      if (((BVar1 == 0) ||
+          (BVar1 = WriteFile(hFile,param_2,0x200,&local_8,(LPOVERLAPPED)0x0), BVar1 == 0)) &&
+         (DVar2 = GetLastError(), 0 < (int)DVar2)) {
+        DVar2 = DVar2 & 0xffff | 0x80070000;
+      }
+      CloseHandle(hFile);
+    }
+  }
+  return DVar2;
+}
 
+Knowing that we passed `drive_path` as an argument, we see an immediate return when this parameter is `NULL`. Another thing we notice is that `in_EAX` is declared, meaning that something was passed over the register.
 
+We also see that the given drive is opened with access level `0xc0000000` this is simply the bit wise combination of `GENERIC_READ` and `GENERIC_WRITE` access. In the case that the call fails an error code is returned from the function.
 
+On success a call to [SetFilePointerEx](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfilepointerex) is made. The number of bytes the file pointer is moved is determined by the passed `EAX` register value shifted to the left by `9` bits.
+
+The assembler instructions around the call to `FUN_10001384` tells is everything with regard to that.
+
+```
+                             LAB_1000180e                                    XREF[1]:     1000182a(j)  
+        1000180e 53              PUSH       EBX
+        1000180f 8d 85 68        LEA        EAX=>drive_path,[EBP + 0xfffffe68]
+                 fe ff ff
+        10001815 50              PUSH       EAX
+        10001816 8b c7           MOV        EAX,EDI
+        10001818 e8 67 fb        CALL       FUN_10001384                                     undefined FUN_10001384(undefined
+                 ff ff
+        1000181d 85 c0           TEST       EAX,EAX
+        1000181f 78 12           JS         LAB_10001833
+        10001821 47              INC        EDI
+        10001822 81 c3 00        ADD        EBX,0x200
+                 02 00 00
+        10001828 3b fe           CMP        EDI,ESI
+        1000182a 72 e2           JC         LAB_1000180e
+        1000182c eb 05           JMP        LAB_10001833
+```
+
+The value passed by the EAX register is `uVar6`. As right before the function call `EDI` is moved into `EAX` and `EDI` is the register keeping track of `uVar6`. The shift by `9` places is then just to space out the writes as `uVar6` itself is just a low value integer. These shifts of `9` result in a distance of `512` between the writes. This effectively means that the start of each drive block is targetted.
+
+This deduction also makes sense with respect to the following [WriteFile](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-writefile) call. As it writes `512` bytes. This is different from what we expected but makes sense too. The data to write is taken from the second passed function argument.
+
+### Back to FUN_100014a9
+
+The entire subroutine then ends with a few calls to the same function we just looked at and renamed to `write_512_offset_EAX`.
+
+```cpp
+if (((-1 < (int)DVar5) &&
+  (status_code = write_512_offset_EAX(&drive_path,&local_39c),
+  -1 < (int)status_code)) &&
+  (status_code = write_512_offset_EAX(&drive_path,&all_7_len_512),
+  -1 < (int)status_code)) {
+  status_code = write_512_offset_EAX(&drive_path,first_128_bytes_xor_7_len_512);
+}
+```
+
+`EAX` appears to be completely lost here, but actually we can see values for it being pushed on the stack.
+
+```
+        10001849 50              PUSH       EAX
+        1000184a 6a 20           PUSH       0x20
+        1000184c 58              POP        EAX
+        1000184d e8 32 fb        CALL       write_512_offset_EAX                             undefined write_512_offset_EAX(u
+                 ff ff
+        10001852 a3 f8 f8        MOV        [status_code],EAX                                = ??
+                 01 10
+        10001857 85 c0           TEST       EAX,EAX
+        10001859 78 3a           JS         LAB_10001895
+        1000185b 8d 85 68        LEA        EAX=>all_7_len_512,[EBP + 0xfffff668]
+                 f6 ff ff
+        10001861 50              PUSH       EAX
+        10001862 8d 85 68        LEA        EAX=>drive_path,[EBP + 0xfffffe68]
+                 fe ff ff
+        10001868 50              PUSH       EAX
+        10001869 6a 21           PUSH       0x21
+        1000186b 58              POP        EAX
+        1000186c e8 13 fb        CALL       write_512_offset_EAX                             undefined write_512_offset_EAX(u
+                 ff ff
+        10001871 a3 f8 f8        MOV        [status_code],EAX                                = ??
+                 01 10
+        10001876 85 c0           TEST       EAX,EAX
+        10001878 78 1b           JS         LAB_10001895
+        1000187a 8d 85 68        LEA        EAX=>first_128_bytes_xor_7_len_512,[EBP + 0xff
+                 f8 ff ff
+        10001880 50              PUSH       EAX
+        10001881 8d 85 68        LEA        EAX=>drive_path,[EBP + 0xfffffe68]
+                 fe ff ff
+        10001887 50              PUSH       EAX
+        10001888 6a 22           PUSH       0x22
+        1000188a 58              POP        EAX
+        1000188b e8 f4 fa        CALL       write_512_offset_EAX                             undefined write_512_offset_EAX(u
+                 ff ff
+```
+
+From this we can infer that it writes to disk block `0x20` (recall that the argument is left shifted by `9` in the function), disk block `0x21` and disk block `0x22`. Unfortuantely though since all the assignments in this subroutine were giving Ghidra a rather hard time the exact implications are unknown and probably not worth looking into. Afterall, it is probably safe to say that this is the subroutine responsible for writing the custom boot loader to the disk, which is also how we will rename this function.
 
 
 
