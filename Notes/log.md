@@ -3130,7 +3130,7 @@ And it's purpose is just to schedule a reboot of the system at a time in the fut
 
 ### Back to Ordinal_1
 
-The next thing we see a a thread being started that runs `FUN_10007c10`.
+The next thing we see is a thread being started that runs `FUN_10007c10`.
 
 ```cpp
 CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,FUN_10007c10,(LPVOID)0x0,0,(LPDWORD)0x0);
@@ -3168,9 +3168,269 @@ void FUN_10007c10(void){
 }
 ```
 
+The first thing we see is a call to [GetComputerNameExW](https://docs.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getcomputernameexw). With the [ComputerNameNetBIOS](https://docs.microsoft.com/nl-nl/windows/win32/api/sysinfoapi/ne-sysinfoapi-computer_name_format) argument this gets the NetBIOS name of the computer, this name is then stored in `local_210`. It should be noted that since `EAX` is passed to `possible_lock_and_wait_check_args` and since `local_210` is stored in `EAX` this name is passed to the function.
 
+The next thing we see is a thread being created to run `FUN_10008e7f`.
 
+### FUN_10008e7f
 
+```cpp
+undefined4 FUN_10008e7f(undefined4 param_1){
+  int iVar1;
+  uint uVar2;
+  LPWSTR lpMem;
+  HANDLE hHeap;
+  undefined4 *lpParameter;
+  undefined4 uVar3;
+  uint uVar4;
+  undefined4 *puVar5;
+  undefined4 *unaff_EDI;
+  int *piVar6;
+  DWORD dwFlags;
+  int iVar7;
+  undefined4 *puVar8;
+  HANDLE local_3018;
+  int *piStack12308;
+  undefined4 local_3010 [2];
+  undefined4 local_3008;
+  undefined local_3004 [4072];
+  uint auStack8220 [5];
+  undefined4 local_2008;
+  undefined local_2004 [8184];
+  undefined4 uStack12;
+  
+  uStack12 = 0x10008e8f;
+  puVar5 = (undefined4 *)0x0;
+  local_3008 = 0;
+  memset(local_3004,0,0xffc);
+  local_2008 = 0;
+  memset(local_2004,0,0x1ffc);
+  puVar8 = local_3010;
+  iVar7 = 0;
+  local_3010[0] = 0;
+  local_3018 = (HANDLE)0x0;
+  iVar1 = GetAdaptersInfo();
+  if ((iVar1 == 0x6f) && (piVar6 = (int *)LocalAlloc(0x40,(SIZE_T)local_3018), piVar6 != (int *)0x0)
+     ) {
+    piStack12308 = piVar6;
+    iVar1 = GetAdaptersInfo(piVar6,&local_3018);
+    if (iVar1 == 0) {
+      do {
+        if ((undefined4 *)0x3ff < puVar8) break;
+        uVar2 = Ordinal_11(piVar6 + 0x6c);
+        auStack8220[iVar7 * 2] = uVar2;
+        uVar2 = Ordinal_11(piVar6 + 0x70);
+        auStack8220[(int)puVar8 * 2 + 2] = uVar2;
+        lpMem = FUN_10006916((LPCSTR)(piVar6 + 0x6c));
+        if (lpMem != (LPWSTR)0x0) {
+          possible_lock_and_wait_check_args(param_1);
+          dwFlags = 0;
+          hHeap = GetProcessHeap();
+          HeapFree(hHeap,dwFlags,lpMem);
+        }
+        if ((piVar6[0x69] != 0) &&
+           (lpMem = FUN_10006916((LPCSTR)(piVar6 + 0x80)), lpMem != (LPWSTR)0x0)) {
+          possible_lock_and_wait_check_args(param_1);
+          dwFlags = 0;
+          hHeap = GetProcessHeap();
+          HeapFree(hHeap,dwFlags,lpMem);
+        }
+        piVar6 = (int *)*piVar6;
+        puVar8 = (undefined4 *)((int)puVar8 + 1);
+      } while (piVar6 != (int *)0x0);
+      iVar1 = FUN_10008243();
+      if (iVar1 != 0) {
+        FUN_1000908a(param_1);
+      }
+      if (puVar8 != (undefined4 *)0x0) {
+        do {
+          lpParameter = (undefined4 *)LocalAlloc(0x40,0xc);
+          if (lpParameter != (undefined4 *)0x0) {
+            uVar2 = Ordinal_11("255.255.255.255");
+            uVar4 = auStack8220[(int)unaff_EDI * 2 + 1] & auStack8220[(int)unaff_EDI * 2 + 2];
+            if ((uVar4 != 0) && ((uVar2 ^ auStack8220[(int)unaff_EDI * 2 + 2] | uVar4) != 0)) {
+              uVar3 = Ordinal_14(uVar4);
+              *lpParameter = uVar3;
+              uVar3 = Ordinal_14(unaff_EDI);
+              lpParameter[1] = uVar3;
+              lpParameter[2] = param_1;
+              hHeap = CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,FUN_10008e04,lpParameter,0,
+                                   (LPDWORD)0x0);
+              if (hHeap != (HANDLE)0x0) {
+                (&local_3018)[(int)unaff_EDI] = hHeap;
+              }
+            }
+          }
+          unaff_EDI = (undefined4 *)((int)unaff_EDI + 1);
+        } while (unaff_EDI < puVar8);
+      }
+      if (unaff_EDI != (undefined4 *)0x0) {
+        do {
+          CloseHandle((&local_3018)[(int)puVar5]);
+          puVar5 = (undefined4 *)((int)puVar5 + 1);
+        } while (puVar5 < unaff_EDI);
+      }
+    }
+    LocalFree((HLOCAL)0x0);
+  }
+  return 0;
+}
+```
+
+One of the first things we see here is a call to [GetAdaptersInfo](https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getadaptersinfo). The syntax is incorrect however, it is missing the parameters that are expected according to the MSDN documentation. On close inspecting this appears to be the case because the required structs are missing, so we'll have to add these.
+
+After adding these the decompilation result definitely becomes clearer, the same goes for after we resolve the true identity of the ` Oridinal` calls from ` WS2_32.dll`. The decompilation result is still far from perfect though and it's trivial to see that there are many mistakes. Nevertheless it might be enough to assertain the function of the subroutine.
+
+```cpp
+undefined4 FUN_10008e7f(u_long param_1){
+  ULONG UVar1;
+  ulong uVar2;
+  LPWSTR lpMem;
+  HANDLE hHeap;
+  int iVar3;
+  u_long *lpParameter;
+  uint netlong;
+  u_long uVar4;
+  uint netlong_00;
+  uint uVar5;
+  _IP_ADAPTER_INFO *local_EDI_150;
+  DWORD dwFlags;
+  uint local_301c;
+  uint local_3018;
+  ULONG local_3010;
+  _IP_ADAPTER_INFO *p_Stack12300;
+  HANDLE local_3008;
+  undefined local_3004 [4092];
+  uint local_2008 [2047];
+  undefined4 uStack12;
+  
+  uStack12 = 0x10008e8f;
+  uVar5 = 0;
+  local_3008 = (HANDLE)0x0;
+  memset(local_3004,0,0xffc);
+  local_2008[0] = 0;
+  memset(local_2008[1],0,0x1ffc);
+  local_3010 = 0;
+  local_301c = 0;
+  local_3018 = 0;
+  UVar1 = GetAdaptersInfo((_IP_ADAPTER_INFO *)0x0,&local_3010);
+  if ((UVar1 == 0x6f) &&
+     (local_EDI_150 = (_IP_ADAPTER_INFO *)LocalAlloc(0x40,local_3010),
+     local_EDI_150 != (_IP_ADAPTER_INFO *)0x0)) {
+    p_Stack12300 = local_EDI_150;
+    UVar1 = GetAdaptersInfo(local_EDI_150,&local_3010);
+    if (UVar1 == 0) {
+      do {
+        if (0x3ff < local_301c) break;
+        uVar2 = inet_addr((local_EDI_150->CurrentIpAddress).IpAddress.String + 4);
+        local_2008[local_301c * 2] = uVar2;
+        uVar2 = inet_addr((local_EDI_150->CurrentIpAddress).IpMask.String + 4);
+        local_2008[1][local_301c * 2] = uVar2;
+        lpMem = FUN_10006916((local_EDI_150->CurrentIpAddress).IpAddress.String + 4);
+        if (lpMem != (LPWSTR)0x0) {
+          possible_lock_and_wait_check_args(param_1);
+          dwFlags = 0;
+          hHeap = GetProcessHeap();
+          HeapFree(hHeap,dwFlags,lpMem);
+        }
+        if ((local_EDI_150->DhcpEnabled != 0) &&
+           (lpMem = FUN_10006916((local_EDI_150->GatewayList).IpAddress.String + 4),
+           lpMem != (LPWSTR)0x0)) {
+          possible_lock_and_wait_check_args(param_1);
+          dwFlags = 0;
+          hHeap = GetProcessHeap();
+          HeapFree(hHeap,dwFlags,lpMem);
+        }
+        local_EDI_150 = local_EDI_150->Next;
+        local_301c = local_301c + 1;
+      } while (local_EDI_150 != (_IP_ADAPTER_INFO *)0x0);
+      iVar3 = FUN_10008243();
+      if (iVar3 != 0) {
+        FUN_1000908a(param_1);
+      }
+      if (local_301c != 0) {
+        do {
+          lpParameter = (u_long *)LocalAlloc(0x40,0xc);
+          if (lpParameter != (u_long *)0x0) {
+            uVar2 = inet_addr("255.255.255.255");
+            netlong_00 = local_2008[local_3018 * 2] & local_2008[1][local_3018 * 2];
+            if ((netlong_00 != 0) &&
+               (netlong = uVar2 ^ local_2008[1][local_3018 * 2] | netlong_00, netlong != 0)) {
+              uVar4 = htonl(netlong_00);
+              *lpParameter = uVar4;
+              uVar4 = htonl(netlong);
+              lpParameter[1] = uVar4;
+              lpParameter[2] = param_1;
+              hHeap = CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,FUN_10008e04,lpParameter,0,
+                                   (LPDWORD)0x0);
+              if (hHeap != (HANDLE)0x0) {
+                (&local_3008)[local_3018] = hHeap;
+              }
+            }
+          }
+          local_3018 = local_3018 + 1;
+        } while (local_3018 < local_301c);
+      }
+      if (local_3018 != 0) {
+        do {
+          CloseHandle((&local_3008)[uVar5]);
+          uVar5 = uVar5 + 1;
+        } while (uVar5 < local_3018);
+      }
+    }
+    LocalFree(p_Stack12300);
+  }
+  return 0;
+}
+```
+
+The [GetAdaptersInfo](https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getadaptersinfo) call get the information for all the network adapters in the system. The return code that is being checked again is `0x6f` which maps to the `ERROR_BUFFER_OVERFLOW` constant. This error code is always returned if the adapter info struct pass is `NULL` as is the case here. This call is however not meaningless as the amount of space that would've been required to store the result is stored in `local_3010`.
+
+It is then also no surprise to see a buffer of size `local_3010` being created and a second call to `GetAdaptersInfo`. This time however the error code checked against is `0` which stands for `ERROR_SUCCESS`.
+
+Next we see two calls to [inet_addr](https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-inet_addr) being used to convert the returned current ip address and address mask from a string to an address to be used in the [in_addr](https://docs.microsoft.com/nl-nl/windows/win32/api/winsock2/ns-winsock2-in_addr) structure.
+
+After these two conversion there is a call to `FUN_10006916` with the ip address.
+
+### FUN_10006916
+
+```cpp
+LPWSTR FUN_10006916(LPCSTR param_1){
+  int cchWideChar;
+  HANDLE hHeap;
+  LPWSTR lpWideCharStr;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  
+  cchWideChar = MultiByteToWideChar(0xfde9,0,param_1,-1,(LPWSTR)0x0,0);
+  if (cchWideChar != 0) {
+    dwBytes = cchWideChar * 2;
+    dwFlags = 0;
+    hHeap = GetProcessHeap();
+    lpWideCharStr = (LPWSTR)HeapAlloc(hHeap,dwFlags,dwBytes);
+    if ((lpWideCharStr != (LPWSTR)0x0) &&
+       (cchWideChar = MultiByteToWideChar(0xfde9,0,param_1,-1,lpWideCharStr,cchWideChar),
+       cchWideChar != 0)) {
+      return lpWideCharStr;
+    }
+  }
+  return (LPWSTR)0x0;
+}
+```
+
+Given that I've used the code that is shown here before myself it is instantly clear that this is simply a standard conversion from an `LPCSTR` to a `LPWSTR` meaning we can simply rename this and continue in the calling function.
+
+### Back in FUN_10008e7f
+
+We see that the `possible_lock_and_wait_check_args` function is invoked again with the just created LPWSTR (which is passed via `EAX`). After this call the memory used by the `LPWSTR` is freed.
+
+Next we see a similar setup where if DHCP is enabled the gateway IP is converted to a `LPWSTR` and passed to `possible_lock_and_wait_check_args`. Evidently these functions do more than we gave them credit for so far.
+
+It should also be noted that everything done with these IP addresses is doen for each adapter as it is all inside a do loop.
+
+Directly after the do loop is a call to the `FUN_10008243` subroutine.
+
+### FUN_10008243
 
 
 
