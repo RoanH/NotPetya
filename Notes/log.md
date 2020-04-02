@@ -3279,7 +3279,7 @@ undefined4 FUN_10008e7f(undefined4 param_1){
 
 One of the first things we see here is a call to [GetAdaptersInfo](https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getadaptersinfo). The syntax is incorrect however, it is missing the parameters that are expected according to the MSDN documentation. On close inspecting this appears to be the case because the required structs are missing, so we'll have to add these.
 
-After adding these the decompilation result definitely becomes clearer, the same goes for after we resolve the true identity of the ` Oridinal` calls from ` WS2_32.dll`. The decompilation result is still far from perfect though and it's trivial to see that there are many mistakes. Nevertheless it might be enough to assertain the function of the subroutine.
+After adding these the decompilation result definitely becomes clearer, the same goes for after we resolve the true identity of the `Oridinal` calls from `WS2_32.dll`. The decompilation result is still far from perfect though and it's trivial to see that there are many mistakes. Nevertheless it might be enough to assertain the function of the subroutine.
 
 ```cpp
 undefined4 FUN_10008e7f(u_long param_1){
@@ -3431,6 +3431,196 @@ It should also be noted that everything done with these IP addresses is doen for
 Directly after the do loop is a call to the `FUN_10008243` subroutine.
 
 ### FUN_10008243
+
+```
+undefined4 FUN_10008243(void){
+  DWORD DVar1;
+  ushort unaff_SI;
+  undefined4 uVar2;
+  int local_8;
+  
+  uVar2 = 0;
+  local_8 = 0;
+  DVar1 = NetServerGetInfo((char *)0x0,0x65,&stack0xfffffff8,unaff_SI,(ushort *)0x0);
+  if ((DVar1 == 0) &&
+     (((*(uint *)(local_8 + 0x10) & 0x8000) != 0 || ((*(uint *)(local_8 + 0x10) & 0x18) != 0)))) {
+    uVar2 = 1;
+  }
+  if (local_8 != 0) {
+    NetApiBufferFree();
+  }
+  return uVar2;
+}
+```
+
+The first thing we see in this function is a call to [NetServerGetInfo](https://docs.microsoft.com/en-us/windows/win32/api/lmserver/nf-lmserver-netservergetinfo) this call gets the current configuration infomration for the specified server. The server specified here is `NULL` which translates to the local computer. The level of `0x65` or `101` refers to the [SERVER_INFO_101](https://docs.microsoft.com/nl-nl/windows/win32/api/lmserver/ns-lmserver-server_info_101) structure. However, we then notice something weird, the call is given 5 arguments, however it should only take 3 according to the MSDN documentation. It turns out that the name of the function was exactly the same as a different function and Ghidra is in fact using the wrong function here, in fact the correct one isn't present in Ghidra's database. So we add the required typedef's and edit the function signature. Doing this massively cleans up the decompilation for this function. In addition we can now identify and add the `SERVER_INFO_101` structure. Retyping `local_8` to the correct struct and fixing up the [NetApiBufferFree](https://docs.microsoft.com/en-us/windows/win32/api/lmapibuf/nf-lmapibuf-netapibufferfree) call without arguments we see at the end of the function massively cleans up the decompilatiol resulting giving.
+
+```cpp
+undefined4 FUN_10008243(void){
+  DWORD DVar1;
+  undefined4 uVar2;
+  SERVER_INFO_101 *local_8;
+  
+  uVar2 = 0;
+  local_8 = (SERVER_INFO_101 *)0x0;
+  DVar1 = NetServerGetInfo((LMSTR)0x0,0x65,(LPBYTE *)&local_8);
+  if ((DVar1 == 0) && (((local_8->sv101_type & 0x8000) != 0 || ((local_8->sv101_type & 0x18) != 0)))
+     ) {
+    uVar2 = 1;
+  }
+  if (local_8 != (SERVER_INFO_101 *)0x0) {
+    NetApiBufferFree(local_8);
+  }
+  return uVar2;
+}
+```
+
+It should be noted that Ghidra gives us a warning about `local_8`.
+
+```
+/* WARNING: Variable defined which should be unmapped: local_8 */
+```
+
+Probably this parameter is just passing through from the function calling `FUN_10008243` which also explains why it isn't explicitly allocated any memory here. The buffer is however freed in this function. This all might be the result of a compiler optimisation.
+
+As for the function itself it checks the `sv101_type` against `0` with the `0x8000` mask and the `0x18`. Breaking down `0x18` gives us `0x10 + 0x8`. Putting this all together the check esstentially only allows the following server software types to pass.
+
+- SV\_TYPE\_DOMAIN\_CTRL - A primary domain controller. 
+- SV\_TYPE\_DOMAIN\_BAKCTRL - A backup domain controller. 
+- SV\_TYPE\_SERVER\_NT - Any server that is not a domain controller. 
+
+And rejects the following types.
+
+- SV\_TYPE\_WORKSTATION
+- SV\_TYPE\_SERVER
+- SV\_TYPE\_SQLSERVER
+- SV\_TYPE\_TIME\_SOURCE
+- SV\_TYPE\_AFP
+- SV\_TYPE\_NOVELL
+- SV\_TYPE\_DOMAIN\_MEMBER
+- SV\_TYPE\_PRINTQ\_SERVER
+- SV\_TYPE\_DIALIN\_SERVER
+- SV\_TYPE\_XENIX\_SERVER
+- SV\_TYPE\_NT
+- SV\_TYPE\_WFW
+- SV\_TYPE\_SERVER\_MFPN
+- SV\_TYPE\_POTENTIAL\_BROWSER
+- SV\_TYPE\_BACKUP\_BROWSER
+- SV\_TYPE\_MASTER\_BROWSER
+- SV\_TYPE\_DOMAIN\_MASTER
+- SV\_TYPE\_SERVER\_OSF
+- SV\_TYPE\_SERVER\_VMS
+- SV\_TYPE\_WINDOWS
+- SV\_TYPE\_DFS
+- SV\_TYPE\_CLUSTER\_NT
+- SV\_TYPE\_TERMINALSERVER
+- SV\_TYPE\_CLUSTER\_VS\_NT
+- SV\_TYPE\_DCE
+- SV\_TYPE\_ALTERNATE\_XPORT
+- SV\_TYPE\_LOCAL\_LIST\_ONLY
+- SV\_TYPE\_DOMAIN\_ENUM
+
+Given this extra information we can rename the subroutine to `running_domain_controller_or_not_a_domain_controller`. Which appears as a tautology, but in reality this probably depends on what exactly "Any server that is not a domain controller" means. Either way the subroutine returns `1` if any of these 3 server software types were running on teh computer.
+
+### Back to FUN_10008e7f
+
+Back in the calling function we see that `FUN_1000908a` is executed with `param_1` which is the critical section object, but only if we were running any of the 3 server software types just checked for.
+
+### FUN_1000908a
+
+```cpp
+undefined4 FUN_1000908a(undefined4 param_1){
+  LPDHCP_CLIENT_INFO p_Var1;
+  DWORD dwFlags;
+  u_long uVar2;
+  int iVar3;
+  LPCSTR pCVar4;
+  LPWSTR lpMem;
+  HANDLE hHeap;
+  uint uVar5;
+  uint uVar6;
+  WCHAR local_248 [260];
+  DWORD local_40;
+  uint local_3c;
+  DWORD local_38;
+  uint local_34;
+  DHCP_RESUME_HANDLE local_30;
+  DHCP_RESUME_HANDLE local_2c;
+  DWORD local_28;
+  DWORD local_24;
+  DWORD local_20;
+  uint local_1c;
+  uint local_18;
+  LPDHCP_SUBNET_INFO local_14;
+  LPDHCP_CLIENT_INFO_ARRAY local_10;
+  LPDHCP_IP_ARRAY local_c [2];
+  
+  uVar5 = 0;
+  uVar6 = 0;
+  local_30 = 0;
+  local_2c = 0;
+  local_c[0] = (LPDHCP_IP_ARRAY)0x0;
+  local_14 = (LPDHCP_SUBNET_INFO)0x0;
+  local_10 = (LPDHCP_CLIENT_INFO_ARRAY)0x0;
+  local_1c = 0;
+  local_18 = 0;
+  local_20 = 0;
+  local_28 = 0;
+  local_24 = 0;
+  local_40 = 0;
+  local_38 = 0x104;
+  GetComputerNameExW(ComputerNamePhysicalNetBIOS,local_248,&local_38);
+  dwFlags = DhcpEnumSubnets(local_248,&local_30,0x400,local_c,&local_20,&local_28);
+  if (dwFlags == 0) {
+    local_3c = local_c[0]->NumElements;
+    if (local_3c != 0) {
+      do {
+        dwFlags = DhcpGetSubnetInfo((WCHAR *)0x0,local_c[0]->Elements[uVar5],&local_14);
+        if ((dwFlags == 0) && (local_14->SubnetState == DhcpSubnetEnabled)) {
+          dwFlags = DhcpEnumSubnetClients
+                              ((WCHAR *)0x0,local_c[0]->Elements[uVar5],&local_2c,0x10000,&local_10,
+                               &local_24,&local_40);
+          if (dwFlags == 0) {
+            local_34 = local_10->NumElements;
+            if ((local_34 != 0) && (uVar6 < local_34)) {
+              do {
+                p_Var1 = local_10->Clients[uVar6];
+                if (p_Var1 != (LPDHCP_CLIENT_INFO)0x0) {
+                  uVar2 = htonl(p_Var1->ClientIpAddress);
+                  iVar3 = FUN_1000a3d9(uVar2);
+                  if (iVar3 != 0) {
+                    uVar2 = htonl(p_Var1->ClientIpAddress);
+                    pCVar4 = (LPCSTR)Ordinal_12(uVar2);
+                    lpMem = lpcstr_to_lpwstr(pCVar4);
+                    if (lpMem != (LPWSTR)0x0) {
+                      possible_lock_and_wait_check_args(param_1);
+                      dwFlags = 0;
+                      hHeap = GetProcessHeap();
+                      HeapFree(hHeap,dwFlags,lpMem);
+                    }
+                  }
+                }
+                uVar6 = local_18 + 1;
+                local_18 = uVar6;
+              } while (uVar6 < local_34);
+            }
+            DhcpRpcFreeMemory(local_10);
+          }
+        }
+        uVar5 = local_1c + 1;
+        local_1c = uVar5;
+      } while (uVar5 < local_3c);
+    }
+    DhcpRpcFreeMemory(local_c[0]);
+  }
+  return 0;
+}
+```
+
+
+
+
+
 
 
 
