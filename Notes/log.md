@@ -3617,11 +3617,89 @@ undefined4 FUN_1000908a(undefined4 param_1){
 }
 ```
 
+First we see a call to [GetComputerNameExW](https://docs.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getcomputernameexw) to get the `ComputernamePhysicalNetBIOS` of the local computer. This information is then passed to [DhcpEnumSubnets](https://docs.microsoft.com/en-us/windows/win32/api/dhcpsapi/nf-dhcpsapi-dhcpenumsubnets) to get a list of all the subnets defined on the DHCP server. The remainder of the subroutine body is then a do loop over this list of subnets.
 
+For each subnet [DhcpGetSubnetInfo](https://docs.microsoft.com/en-us/windows/win32/api/dhcpsapi/nf-dhcpsapi-dhcpgetsubnetinfo) is invoked to get more information about the subnet. It then filters out all the subnets that are actually enabled and invokes [https://docs.microsoft.com/en-us/windows/win32/api/dhcpsapi/nf-dhcpsapi-dhcpgetsubnetinfo](https://docs.microsoft.com/en-us/windows/win32/api/dhcpsapi/nf-dhcpsapi-dhcpenumsubnetclients) on each of them. This call returns a list of all the servered client in the subnet. Effectively this get all the client of the DHCP server.
 
+After this we see a similar loop over all the clients of the DHCP server subnet. For each client their IP address is converted from host byte order to TCP/IP network byte order using [htonl](https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-htonl) and then passed to `FUN_1000a3d9`.
 
+### FUN_1000a3d9
 
+```cpp
+undefined4 FUN_1000a3d9(undefined4 param_1)
 
+{
+  int iVar1;
+  
+  iVar1 = FUN_1000a2e8(param_1,0x1bd);
+  if ((iVar1 == 0) && (iVar1 = FUN_1000a2e8(param_1,0x8b), iVar1 == 0)) {
+    return 0;
+  }
+  return 1;
+}
+```
+
+Turns out this function doesn't do a whole lot by itself. It calls `FUN_1000a2e8` with the passed address and either `0x1bd` or `0x8b`. If both versions return `0` then the function returns `0`, otherwise `1` is returned.
+
+### FUN_1000a2e8
+
+```cpp
+undefined4 FUN_1000a2e8(undefined4 param_1,undefined4 param_2){
+  int iVar1;
+  int iVar2;
+  undefined4 local_12c;
+  int local_128 [65];
+  undefined2 local_24;
+  undefined2 local_22;
+  undefined4 local_20;
+  undefined2 uStack28;
+  undefined4 uStack26;
+  undefined2 uStack22;
+  undefined4 local_14;
+  undefined4 local_10;
+  undefined4 local_c;
+  undefined4 local_8;
+  
+  local_24 = 0;
+  local_22 = 0;
+  local_20._0_2_ = 0;
+  local_20._2_2_ = 0;
+  uStack28 = 0;
+  uStack26 = 0;
+  uStack22 = 0;
+  local_12c = 0;
+  memset(local_128,0,0x100);
+  local_10 = 0;
+  local_c = 0;
+  local_14 = 1;
+  local_8 = 0;
+  iVar1 = Ordinal_23(2,1,0);
+  if (iVar1 != 0) {
+    local_24 = 2;
+    local_20 = param_1;
+    local_22 = Ordinal_9(param_2);
+    iVar2 = Ordinal_10(iVar1,0x8004667e,&local_14);
+    if (iVar2 != -1) {
+      Ordinal_4(iVar1,&local_24,0x10);
+      local_12c = 1;
+      local_10 = 2;
+      local_c = 0;
+      local_128[0] = iVar1;
+      iVar2 = Ordinal_18(iVar1 + 1,0,&local_12c,0,&local_10);
+      if (iVar2 != -1) {
+        iVar2 = Ordinal_151(iVar1,&local_12c);
+        if (iVar2 != 0) {
+          local_8 = 1;
+        }
+      }
+    }
+    Ordinal_3(iVar1);
+  }
+  return local_8;
+}
+```
+
+This function appears to contain a lot of unresolved references and structures so before we start analysing it we will start with properly filling in all the `Ordinal` calls and try to resolve some structures.
 
 
 
