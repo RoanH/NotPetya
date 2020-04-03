@@ -3699,10 +3699,60 @@ undefined4 FUN_1000a2e8(undefined4 param_1,undefined4 param_2){
 }
 ```
 
-This function appears to contain a lot of unresolved references and structures so before we start analysing it we will start with properly filling in all the `Ordinal` calls and try to resolve some structures.
+This function appears to contain a lot of unresolved references and structures so before we start analysing it we will start with properly filling in all the `Ordinal` calls and try to resolve some structures. The final result is much clearer.
 
+```cpp
+undefined4 FUN_1000a2e8(u_long address,u_short param_2){
+  SOCKET s;
+  int iVar1;
+  fd_set local_12c;
+  sockaddr local_24;
+  u_long local_14;
+  timeval local_10;
+  undefined4 retval;
+  
+  local_24.sa_family = 0;
+  local_24.sa_data._0_2_ = 0;
+  local_24.sa_data._2_2_ = 0;
+  local_24.sa_data._4_2_ = 0;
+  local_24.sa_data._6_2_ = 0;
+  local_24.sa_data._8_4_ = 0;
+  local_24.sa_data._12_2_ = 0;
+  local_12c.fd_count = 0;
+  memset(local_12c.fd_array,0,0x100);
+  local_10.tv_sec = 0;
+  local_10.tv_usec = 0;
+  local_14 = 1;
+  retval = 0;
+  s = socket(2,1,0);
+  if (s != 0) {
+    local_24.sa_family = 2;
+    local_24.sa_data._2_4_ = address;
+    local_24.sa_data._0_2_ = htons(param_2);
+    iVar1 = ioctlsocket(s,-0x7ffb9982,&local_14);
+    if (iVar1 != -1) {
+      connect(s,&local_24,0x10);
+      local_12c.fd_count = 1;
+      local_10.tv_sec = 2;
+      local_10.tv_usec = 0;
+      local_12c.fd_array[0] = s;
+      iVar1 = select(s + 1,(fd_set *)0x0,&local_12c,(fd_set *)0x0,&local_10);
+      if (iVar1 != -1) {
+        iVar1 = __WSAFDIsSet(s,&local_12c);
+        if (iVar1 != 0) {
+          retval = 1;
+        }
+      }
+    }
+    closesocket(s);
+  }
+  return retval;
+}
+```
 
+The first thing we see happen is a call to [socket](https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-socket) to open a socket of the `AF_INET` familiy which is the Internet Protocol version 4 (IPv4) family running `SOCK_STREAM` or TCP and no specific protocol.
 
+From some investigation of the `sockaddr` structure we also figure out that `param_2` is actually the server port number to use. 
 
 
 
