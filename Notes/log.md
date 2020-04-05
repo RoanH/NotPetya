@@ -3752,7 +3752,43 @@ undefined4 FUN_1000a2e8(u_long address,u_short param_2){
 
 The first thing we see happen is a call to [socket](https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-socket) to open a socket of the `AF_INET` familiy which is the Internet Protocol version 4 (IPv4) family running `SOCK_STREAM` or TCP and no specific protocol.
 
-From some investigation of the `sockaddr` structure we also figure out that `param_2` is actually the server port number to use. 
+From some investigation of the `sockaddr` structure we also figure out that `param_2` is actually the server port number to use. Recalling how this subroutine is invoked that means that two server ports are tested.
+
+On the next line we see a call to [ioctlsocket](https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-ioctlsocket). This call executes command `-0x7ffb9982` on socket `s` with parameter `local_14`. The command with this code is [FIONBIO](https://docs.microsoft.com/en-us/previous-versions/windows/embedded/ms891129(v%3Dmsdn.10)) which toggle nonblocking mode. The parameter passed determines wether to enable or disable this, since `local_14` is assigned a `1` nonblocking mode is enabled.
+
+Assuming changing the blocking mode worked the [connect](https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-connect) subroutine is invoked. This call opens a connection using the given socket and target server to connect to. As documented on MSDN this is followed up by a call to [select](https://docs.microsoft.com/nl-nl/windows/win32/api/winsock2/nf-winsock2-select) to determine if the socket was succesfully opened (specified to nonblocking sockets) by checking if the socket is writable.
+
+Assuming the socket was opened succesfully and writable a call is made to [__WSAFDIsSet](https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-__wsafdisset). This call checks if `s` is a member of the set of sockets to check for writability. The call seems odd though as `s` is clearly placed in this set earlier. In either case `1` is returned by the function if this worked. Finally the socket is always closed. This makes this subroutine more like a check if connection possible function, therefore we will rename it to `try_connect`.
+
+### Back to FUN_1000a3d9
+
+```cpp
+undefined4 FUN_1000a3d9(u_long address){
+  int iVar1;
+  
+  iVar1 = try_connect(address,0x1bd);
+  if ((iVar1 == 0) && (iVar1 = try_connect(address,0x8b), iVar1 == 0)) {
+    return 0;
+  }
+  return 1;
+}
+```
+
+Back in `FUN_1000a3d9` we then clearly see that the function returns `1` only if a connection could be established to the passed address on port `0x1bd` or `0x8b`. Converting to decimal gives us the port numbers `455` and `139`. These ports are used by SMB, this is not surprising as NotPetya exploits the [EternalBlue](https://en.wikipedia.org/wiki/EternalBlue) vulnerability, which is a vulnerability in Microsoft's implementation of the SMB protocol (Server Message Block). Presumably that also means that the code we are working with at the moment is part of the logic used to spread the malware.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
