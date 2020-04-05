@@ -3774,13 +3774,230 @@ undefined4 FUN_1000a3d9(u_long address){
 }
 ```
 
-Back in `FUN_1000a3d9` we then clearly see that the function returns `1` only if a connection could be established to the passed address on port `0x1bd` or `0x8b`. Converting to decimal gives us the port numbers `455` and `139`. These ports are used by SMB, this is not surprising as NotPetya exploits the [EternalBlue](https://en.wikipedia.org/wiki/EternalBlue) vulnerability, which is a vulnerability in Microsoft's implementation of the SMB protocol (Server Message Block). Presumably that also means that the code we are working with at the moment is part of the logic used to spread the malware.
+Back in `FUN_1000a3d9` we then clearly see that the function returns `1` only if a connection could be established to the passed address on port `0x1bd` or `0x8b`. Converting to decimal gives us the port numbers `455` and `139`. These ports are used by SMB, this is not surprising as NotPetya exploits the [EternalBlue](https://en.wikipedia.org/wiki/EternalBlue) vulnerability, which is a vulnerability in Microsoft's implementation of the SMB protocol (Server Message Block). Presumably that also means that the code we are working with at the moment is part of the logic used to spread the malware. We will also rename `FUN_1000a3d9` to `check_if_smb_open`.
+
+### Back to FUN_1000908a
+
+So we have now discovered that for all the IP addressed iterated by this subroutine it is checked if the ports used by the SMB protocol are open. For all such address the following logic is executed.
+
+```cpp
+tcpip_address = htonl(client->ClientIpAddress);
+open = check_if_smb_open(tcpip_address);
+if (open != 0) {
+  tcpip_address = htonl(client->ClientIpAddress);
+  pCVar1 = (LPCSTR)Ordinal_12(tcpip_address);
+  lpMem = lpcstr_to_lpwstr(pCVar1);
+  if (lpMem != (LPWSTR)0x0) {
+    possible_lock_and_wait_check_args(param_1);
+    success = 0;
+    hHeap = GetProcessHeap();
+    HeapFree(hHeap,success,lpMem);
+  }
+}
+```
+
+This means that we will resolve the reference to `Ordinal_12` first. We find that this resolves to [inet_ntoa](https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-inet_ntoa) this subroutine converts an IPv4 address into an ASCII string following the standard dot notation.
+
+We then again see a call to `possible_lock_and_wait_check_args` (note that things could have been passed via the registers again). The suspicious is that the just allocated address string is somehow passed as it is otherwise unused. It might be that these critical section, seemingly synchronisation functions pass possible targets that could be vulnerable to EternalBlue to some other thread. We will rename `FUN_1000908a` to `identify_vulnerable_hosts_for_eternalblue`.
+
+The entire function ended up as the following after all the renaming.
+
+```cpp
+undefined4 identify_vulnerable_hosts_for_eternalblue(undefined4 crit_section){
+  LPDHCP_CLIENT_INFO client;
+  DWORD success;
+  u_long tcpip_address;
+  int open;
+  in_addr in;
+  char *pcVar1;
+  LPWSTR ip_str;
+  HANDLE hHeap;
+  uint index;
+  uint idx;
+  WCHAR net_bios_name [260];
+  DWORD total_clients;
+  uint total_subnets_num;
+  DWORD net_bios_name_len;
+  uint num_clients;
+  DHCP_RESUME_HANDLE resume_handle;
+  DHCP_RESUME_HANDLE resume_handle_sub;
+  DWORD total_subnets;
+  DWORD clients_read;
+  DWORD subnets_read;
+  uint local_1c;
+  uint local_18;
+  LPDHCP_SUBNET_INFO subnet_info;
+  LPDHCP_CLIENT_INFO_ARRAY client_info;
+  LPDHCP_IP_ARRAY subnets [2];
+  
+  index = 0;
+  idx = 0;
+  resume_handle = 0;
+  resume_handle_sub = 0;
+  subnets[0] = (LPDHCP_IP_ARRAY)0x0;
+  subnet_info = (LPDHCP_SUBNET_INFO)0x0;
+  client_info = (LPDHCP_CLIENT_INFO_ARRAY)0x0;
+  local_1c = 0;
+  local_18 = 0;
+  subnets_read = 0;
+  total_subnets = 0;
+  clients_read = 0;
+  total_clients = 0;
+  net_bios_name_len = 0x104;
+  GetComputerNameExW(ComputerNamePhysicalNetBIOS,net_bios_name,&net_bios_name_len);
+  success = DhcpEnumSubnets(net_bios_name,&resume_handle,0x400,subnets,&subnets_read,&total_subnets)
+  ;
+  if (success == 0) {
+    total_subnets_num = subnets[0]->NumElements;
+    if (total_subnets_num != 0) {
+      do {
+        success = DhcpGetSubnetInfo((WCHAR *)0x0,subnets[0]->Elements[index],&subnet_info);
+        if ((success == 0) && (subnet_info->SubnetState == DhcpSubnetEnabled)) {
+          success = DhcpEnumSubnetClients
+                              ((WCHAR *)0x0,subnets[0]->Elements[index],&resume_handle_sub,0x10000,
+                               &client_info,&clients_read,&total_clients);
+          if (success == 0) {
+            num_clients = client_info->NumElements;
+            if ((num_clients != 0) && (idx < num_clients)) {
+              do {
+                client = client_info->Clients[idx];
+                if (client != (LPDHCP_CLIENT_INFO)0x0) {
+                  tcpip_address = htonl(client->ClientIpAddress);
+                  open = check_if_smb_open(tcpip_address);
+                  if (open != 0) {
+                    in = (in_addr)htonl(client->ClientIpAddress);
+                    pcVar1 = inet_ntoa(in);
+                    ip_str = lpcstr_to_lpwstr(pcVar1);
+                    if (ip_str != (LPWSTR)0x0) {
+                      possible_lock_and_wait_check_args(crit_section);
+                      success = 0;
+                      hHeap = GetProcessHeap();
+                      HeapFree(hHeap,success,ip_str);
+                    }
+                  }
+                }
+                idx = local_18 + 1;
+                local_18 = idx;
+              } while (idx < num_clients);
+            }
+            DhcpRpcFreeMemory(client_info);
+          }
+        }
+        index = local_1c + 1;
+        local_1c = index;
+      } while (index < total_subnets_num);
+    }
+    DhcpRpcFreeMemory(subnets[0]);
+  }
+  return 0;
+}
+```
 
 
+### Back to FUN_10008e7f
 
-
-
-
+```cpp
+undefined4 FUN_10008e7f(u_long crit_section){
+  ULONG UVar1;
+  ulong uVar2;
+  LPWSTR lpMem;
+  HANDLE hHeap;
+  int iVar3;
+  u_long *lpParameter;
+  uint netlong;
+  u_long uVar4;
+  uint netlong_00;
+  uint uVar5;
+  _IP_ADAPTER_INFO *local_EDI_150;
+  DWORD dwFlags;
+  uint local_301c;
+  uint local_3018;
+  ULONG local_3010;
+  _IP_ADAPTER_INFO *p_Stack12300;
+  HANDLE local_3008;
+  undefined local_3004 [4092];
+  uint local_2008 [2047];
+  undefined4 uStack12;
+  
+  uStack12 = 0x10008e8f;
+  uVar5 = 0;
+  local_3008 = (HANDLE)0x0;
+  memset(local_3004,0,0xffc);
+  local_2008[0] = 0;
+  memset(local_2008[1],0,0x1ffc);
+  local_3010 = 0;
+  local_301c = 0;
+  local_3018 = 0;
+  UVar1 = GetAdaptersInfo((_IP_ADAPTER_INFO *)0x0,&local_3010);
+  if ((UVar1 == 0x6f) &&
+     (local_EDI_150 = (_IP_ADAPTER_INFO *)LocalAlloc(0x40,local_3010),
+     local_EDI_150 != (_IP_ADAPTER_INFO *)0x0)) {
+    p_Stack12300 = local_EDI_150;
+    UVar1 = GetAdaptersInfo(local_EDI_150,&local_3010);
+    if (UVar1 == 0) {
+      do {
+        if (0x3ff < local_301c) break;
+        uVar2 = inet_addr((local_EDI_150->CurrentIpAddress).IpAddress.String + 4);
+        local_2008[local_301c * 2] = uVar2;
+        uVar2 = inet_addr((local_EDI_150->CurrentIpAddress).IpMask.String + 4);
+        local_2008[1][local_301c * 2] = uVar2;
+        lpMem = lpcstr_to_lpwstr((local_EDI_150->CurrentIpAddress).IpAddress.String + 4);
+        if (lpMem != (LPWSTR)0x0) {
+          possible_lock_and_wait_check_args(crit_section);
+          dwFlags = 0;
+          hHeap = GetProcessHeap();
+          HeapFree(hHeap,dwFlags,lpMem);
+        }
+        if ((local_EDI_150->DhcpEnabled != 0) &&
+           (lpMem = lpcstr_to_lpwstr((local_EDI_150->GatewayList).IpAddress.String + 4),
+           lpMem != (LPWSTR)0x0)) {
+          possible_lock_and_wait_check_args(crit_section);
+          dwFlags = 0;
+          hHeap = GetProcessHeap();
+          HeapFree(hHeap,dwFlags,lpMem);
+        }
+        local_EDI_150 = local_EDI_150->Next;
+        local_301c = local_301c + 1;
+      } while (local_EDI_150 != (_IP_ADAPTER_INFO *)0x0);
+      iVar3 = running_domain_controller_or_not_a_domain_controller();
+      if (iVar3 != 0) {
+        identify_vulnerable_hosts_for_eternalblue(crit_section);
+      }
+      if (local_301c != 0) {
+        do {
+          lpParameter = (u_long *)LocalAlloc(0x40,0xc);
+          if (lpParameter != (u_long *)0x0) {
+            uVar2 = inet_addr("255.255.255.255");
+            netlong_00 = local_2008[local_3018 * 2] & local_2008[1][local_3018 * 2];
+            if ((netlong_00 != 0) &&
+               (netlong = uVar2 ^ local_2008[1][local_3018 * 2] | netlong_00, netlong != 0)) {
+              uVar4 = htonl(netlong_00);
+              *lpParameter = uVar4;
+              uVar4 = htonl(netlong);
+              lpParameter[1] = uVar4;
+              lpParameter[2] = crit_section;
+              hHeap = CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,FUN_10008e04,lpParameter,0,
+                                   (LPDWORD)0x0);
+              if (hHeap != (HANDLE)0x0) {
+                (&local_3008)[local_3018] = hHeap;
+              }
+            }
+          }
+          local_3018 = local_3018 + 1;
+        } while (local_3018 < local_301c);
+      }
+      if (local_3018 != 0) {
+        do {
+          CloseHandle((&local_3008)[uVar5]);
+          uVar5 = uVar5 + 1;
+        } while (uVar5 < local_3018);
+      }
+    }
+    LocalFree(p_Stack12300);
+  }
+  return 0;
+}
+```
 
 
 
