@@ -3908,69 +3908,71 @@ undefined4 FUN_10008e7f(u_long crit_section){
   u_long uVar4;
   uint netlong_00;
   uint uVar5;
-  _IP_ADAPTER_INFO *local_EDI_150;
+  _IP_ADAPTER_INFO *adapter_info;
   DWORD dwFlags;
-  uint local_301c;
+  uint idx;
   uint local_3018;
-  ULONG local_3010;
+  ULONG adapter_num;
   _IP_ADAPTER_INFO *p_Stack12300;
   HANDLE local_3008;
   undefined local_3004 [4092];
-  uint local_2008 [2047];
+  uint adapter_ips_and_masks [2047];
   undefined4 uStack12;
   
   uStack12 = 0x10008e8f;
   uVar5 = 0;
   local_3008 = (HANDLE)0x0;
   memset(local_3004,0,0xffc);
-  local_2008[0] = 0;
-  memset(local_2008[1],0,0x1ffc);
-  local_3010 = 0;
-  local_301c = 0;
+  adapter_ips_and_masks[0] = 0;
+  memset(adapter_ips_and_masks[1],0,0x1ffc);
+  adapter_num = 0;
+  idx = 0;
   local_3018 = 0;
-  UVar1 = GetAdaptersInfo((_IP_ADAPTER_INFO *)0x0,&local_3010);
+  UVar1 = GetAdaptersInfo((_IP_ADAPTER_INFO *)0x0,&adapter_num);
   if ((UVar1 == 0x6f) &&
-     (local_EDI_150 = (_IP_ADAPTER_INFO *)LocalAlloc(0x40,local_3010),
-     local_EDI_150 != (_IP_ADAPTER_INFO *)0x0)) {
-    p_Stack12300 = local_EDI_150;
-    UVar1 = GetAdaptersInfo(local_EDI_150,&local_3010);
+     (adapter_info = (_IP_ADAPTER_INFO *)LocalAlloc(0x40,adapter_num),
+     adapter_info != (_IP_ADAPTER_INFO *)0x0)) {
+    p_Stack12300 = adapter_info;
+    UVar1 = GetAdaptersInfo(adapter_info,&adapter_num);
     if (UVar1 == 0) {
       do {
-        if (0x3ff < local_301c) break;
-        uVar2 = inet_addr((local_EDI_150->CurrentIpAddress).IpAddress.String + 4);
-        local_2008[local_301c * 2] = uVar2;
-        uVar2 = inet_addr((local_EDI_150->CurrentIpAddress).IpMask.String + 4);
-        local_2008[1][local_301c * 2] = uVar2;
-        lpMem = lpcstr_to_lpwstr((local_EDI_150->CurrentIpAddress).IpAddress.String + 4);
+        if (0x3ff < idx) break;
+        uVar2 = inet_addr((adapter_info->CurrentIpAddress).IpAddress.String + 4);
+        adapter_ips_and_masks[idx * 2] = uVar2;
+        uVar2 = inet_addr((adapter_info->CurrentIpAddress).IpMask.String + 4);
+        adapter_ips_and_masks[1][idx * 2] = uVar2;
+        lpMem = lpcstr_to_lpwstr((adapter_info->CurrentIpAddress).IpAddress.String + 4);
         if (lpMem != (LPWSTR)0x0) {
           possible_lock_and_wait_check_args(crit_section);
           dwFlags = 0;
           hHeap = GetProcessHeap();
           HeapFree(hHeap,dwFlags,lpMem);
         }
-        if ((local_EDI_150->DhcpEnabled != 0) &&
-           (lpMem = lpcstr_to_lpwstr((local_EDI_150->GatewayList).IpAddress.String + 4),
+        if ((adapter_info->DhcpEnabled != 0) &&
+           (lpMem = lpcstr_to_lpwstr((adapter_info->GatewayList).IpAddress.String + 4),
            lpMem != (LPWSTR)0x0)) {
           possible_lock_and_wait_check_args(crit_section);
           dwFlags = 0;
           hHeap = GetProcessHeap();
           HeapFree(hHeap,dwFlags,lpMem);
         }
-        local_EDI_150 = local_EDI_150->Next;
-        local_301c = local_301c + 1;
-      } while (local_EDI_150 != (_IP_ADAPTER_INFO *)0x0);
+        adapter_info = adapter_info->Next;
+        idx = idx + 1;
+      } while (adapter_info != (_IP_ADAPTER_INFO *)0x0);
       iVar3 = running_domain_controller_or_not_a_domain_controller();
       if (iVar3 != 0) {
         identify_vulnerable_hosts_for_eternalblue(crit_section);
       }
-      if (local_301c != 0) {
+      if (idx != 0) {
         do {
           lpParameter = (u_long *)LocalAlloc(0x40,0xc);
           if (lpParameter != (u_long *)0x0) {
             uVar2 = inet_addr("255.255.255.255");
-            netlong_00 = local_2008[local_3018 * 2] & local_2008[1][local_3018 * 2];
+            netlong_00 = adapter_ips_and_masks[local_3018 * 2] &
+                         adapter_ips_and_masks[1][local_3018 * 2];
             if ((netlong_00 != 0) &&
-               (netlong = uVar2 ^ local_2008[1][local_3018 * 2] | netlong_00, netlong != 0)) {
+               (netlong = uVar2 ^ adapter_ips_and_masks[1][local_3018 * 2] | netlong_00,
+               netlong != 0)) {
               uVar4 = htonl(netlong_00);
               *lpParameter = uVar4;
               uVar4 = htonl(netlong);
@@ -3984,7 +3986,7 @@ undefined4 FUN_10008e7f(u_long crit_section){
             }
           }
           local_3018 = local_3018 + 1;
-        } while (local_3018 < local_301c);
+        } while (local_3018 < idx);
       }
       if (local_3018 != 0) {
         do {
@@ -3999,9 +4001,92 @@ undefined4 FUN_10008e7f(u_long crit_section){
 }
 ```
 
+Next we see a check on `idx` being `0`. Presumably this checks that at least one adapter was present as this local was also used to keep track of the loop iterations in the do loop from before.
 
+This also makes sense given the following loop which iterates over all the properties that were stored in `adapter_ips_and_masks`. Each of the stored IPs is masked with their subnet mask before being checked against `0`. If this check passes a new thread is started with 3 arguments.
 
+- [0] The current IP address of the adapter.
+- [1] The subnet mask of the adapter. 
+- [2] The critical section object.
 
+Note that this happens for each of the stored adapters.
+
+Next we will look at the subroutine executed by the thread that is started `FUN_10008e04`.
+
+### FUN_10008e04
+
+```cpp
+undefined4 FUN_10008e04(uint *param_1){
+  uint uVar1;
+  u_long address;
+  int iVar2;
+  in_addr in;
+  char *pcVar3;
+  LPWSTR lpMem;
+  HANDLE hHeap;
+  uint netlong;
+  DWORD dwFlags;
+  
+  netlong = *param_1;
+  uVar1 = param_1[1];
+  while (netlong < uVar1) {
+    address = htonl(netlong);
+    iVar2 = check_if_smb_open(address);
+    if (iVar2 != 0) {
+      in = (in_addr)htonl(netlong);
+      pcVar3 = inet_ntoa(in);
+      lpMem = lpcstr_to_lpwstr(pcVar3);
+      if (lpMem != (LPWSTR)0x0) {
+        possible_lock_and_wait_check_args(param_1[2]);
+        dwFlags = 0;
+        hHeap = GetProcessHeap();
+        HeapFree(hHeap,dwFlags,lpMem);
+      }
+    }
+    netlong = netlong + 1;
+  }
+  LocalFree(param_1);
+  return 0;
+}
+```
+
+The function looks relatively simple, the loop iterates all IPs up from the passed first argument IP until it hits the subnet mask. For each of these address it is checked if SMB ports are open. If so then we see a call to `possible_lock_and_wait_check_args`. It seems appropriate to rename the function to `check_all_for_smb`.
+
+### Back to FUN_10008e7f
+
+Having parsed the entirety of this function is seems clear that it finds targets on the local network running SMB most likely so they can later be infected using EternalBlue. We will rename the function to `find_infection_candidates`.
+
+### Back to FUN_10007c10
+
+```cpp
+void FUN_10007c10(void){
+  bool bVar1;
+  LPVOID lpParameter;
+  BOOL BVar2;
+  WCHAR net_bios_name [260];
+  DWORD local_8;
+  
+  lpParameter = critical_section_no_extra_debug;
+  possible_lock_and_wait_check_args(critical_section_no_extra_debug);
+  possible_lock_and_wait_check_args(lpParameter);
+  local_8 = 0x104;
+  BVar2 = GetComputerNameExW(ComputerNamePhysicalNetBIOS,net_bios_name,&local_8);
+  if (BVar2 != 0) {
+    possible_lock_and_wait_check_args(lpParameter);
+  }
+  CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,find_infection_candidates,lpParameter,0,(LPDWORD)0x0);
+  bVar1 = false;
+  do {
+    FUN_1000777b(lpParameter);
+    FUN_1000786b(lpParameter);
+    if (!bVar1) {
+      FUN_1000795a(lpParameter,0x80000000,0);
+      bVar1 = true;
+    }
+    Sleep(180000);
+  } while( true );
+}
+```
 
 
 
@@ -4016,6 +4101,7 @@ Memory:
 - `FUN_1000835e` - contains a killswitch
 - `FUN_10008d5a` - `destroy_boot` rip everyone
 - `FUN_10001038` - could be revisited as we now have more information
+- `possible_lock` - seems related to passing around new hosts to infect but no read function has been found yet. Also possible that the function itself does this but in that case it is strange for there to be no clear networking related logic.
 
 
 
