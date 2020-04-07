@@ -4445,6 +4445,8 @@ undefined4 FUN_1000795a(undefined4 param_1,undefined4 param_2,undefined4 param_3
 }
 ```
 
+The subroutine starts with a call to [NetServerEnum](https://docs.microsoft.com/en-us/windows/win32/api/lmserver/nf-lmserver-netserverenum). Ghidra seems to be missing the function signature however, resolving this should fix most of the missing type details for this subroutine.
+
 
 
 
