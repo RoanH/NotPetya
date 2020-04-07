@@ -4088,9 +4088,70 @@ void FUN_10007c10(void){
 }
 ```
 
+Next we will look at the first of the 3 functions that are being executed every `180000ms` (`2 min`).
 
+### FUN_1000777b
 
+```cpp
+uint FUN_1000777b(undefined4 crit_section){
+  FARPROC pFVar1;
+  HANDLE hHeap;
+  int iVar2;
+  uint uVar3;
+  uint *lpMem;
+  byte *pbVar4;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  WCHAR local_54 [32];
+  HMODULE local_14;
+  uint *local_10;
+  undefined4 local_c;
+  uint local_8;
+  
+  uVar3 = 0;
+  local_14 = LoadLibraryW(L"iphlpapi.dll");
+  if (local_14 != (HMODULE)0x0) {
+    pFVar1 = GetProcAddress(local_14,"GetExtendedTcpTable");
+    if (pFVar1 == (FARPROC)0x0) {
+      GetLastError();
+    }
+    else {
+      dwBytes = 0x100000;
+      dwFlags = 8;
+      local_c = 0x100000;
+      hHeap = GetProcessHeap();
+      lpMem = (uint *)HeapAlloc(hHeap,dwFlags,dwBytes);
+      local_10 = lpMem;
+      if (lpMem != (uint *)0x0) {
+        iVar2 = (*pFVar1)(lpMem,&local_c,0,2,1,0);
+        uVar3 = (uint)(iVar2 == 0);
+        if ((iVar2 == 0) && (local_8 = 0, *lpMem != 0)) {
+          pbVar4 = (byte *)((int)lpMem + 0x12);
+          do {
+            if (*(int *)(pbVar4 + -0xe) == 5) {
+              wsprintfW(local_54,L"%u.%u.%u.%u",(uint)pbVar4[-2],(uint)pbVar4[-1],(uint)*pbVar4,
+                        (uint)pbVar4[1]);
+              possible_lock_and_wait_check_args(crit_section);
+              lpMem = local_10;
+            }
+            local_8 = local_8 + 1;
+            pbVar4 = pbVar4 + 0x14;
+          } while (local_8 < *lpMem);
+        }
+        dwFlags = 0;
+        hHeap = GetProcessHeap();
+        HeapFree(hHeap,dwFlags,lpMem);
+      }
+    }
+    FreeLibrary(local_14);
+  }
+  return uVar3;
+}
+```
 
+The first we see is `iphlpapi.dll` being loaded. If this worked then [GetProcAddress](https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress) is used to get the address of an exported function from the DLL the fuction obtained is `GetExtendedTcpTable`.
+
+The next thing we see is the [GetExtendedTcpTable](https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedtcptable) function being invoked. The returned table is stored in the memory that was allocated before hand. The table class requested is `1` this should map to the [TCP_TABLE_BASIC_CONNECTIONS](https://docs.microsoft.com/nl-nl/windows/win32/api/iprtrmib/ne-iprtrmib-tcp_table_class) enum constant which means the function call returns a [MIB_TCPTABLE](https://docs.microsoft.com/nl-nl/windows/win32/api/tcpmib/ns-tcpmib-mib_tcptable) structure. Adding the associated typedef's and retyping the allocated memory makes the following part much clearer.
 
 
 
