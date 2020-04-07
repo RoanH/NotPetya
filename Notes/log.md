@@ -3432,7 +3432,7 @@ Directly after the do loop is a call to the `FUN_10008243` subroutine.
 
 ### FUN_10008243
 
-```
+```cpp
 undefined4 FUN_10008243(void){
   DWORD DVar1;
   ushort unaff_SI;
@@ -4445,7 +4445,68 @@ undefined4 FUN_1000795a(undefined4 param_1,undefined4 param_2,undefined4 param_3
 }
 ```
 
-The subroutine starts with a call to [NetServerEnum](https://docs.microsoft.com/en-us/windows/win32/api/lmserver/nf-lmserver-netserverenum). Ghidra seems to be missing the function signature however, resolving this should fix most of the missing type details for this subroutine.
+The subroutine starts with a call to [NetServerEnum](https://docs.microsoft.com/en-us/windows/win32/api/lmserver/nf-lmserver-netserverenum). Ghidra seems to be missing the function signature however, resolving this should fix most of the missing type details for this subroutine. This results in.
+
+```cpp
+undefined4 FUN_1000795a(undefined4 crit_section,DWORD param_2,LMCSTR param_3){
+  DWORD DVar1;
+  uint uVar2;
+  undefined4 *puVar3;
+  DWORD local_14;
+  DWORD local_10;
+  DWORD local_c;
+  LPBYTE local_8;
+  
+  local_8 = (LPBYTE)0x0;
+  local_c = 0;
+  local_14 = 0;
+  local_10 = 0;
+  DVar1 = NetServerEnum((LMCSTR)0x0,0x65,&local_8,0xffffffff,&local_c,&local_14,param_2,param_3,
+                        &local_10);
+  if ((DVar1 == 0) || (DVar1 == 0xea)) {
+    param_3 = (LMCSTR)0x1;
+    if (local_8 == (LPBYTE)0x0) {
+      return 1;
+    }
+    uVar2 = 0;
+    if (local_c != 0) {
+      puVar3 = (undefined4 *)(local_8 + 4);
+      do {
+        if (puVar3 == (undefined4 *)&DAT_00000004) break;
+        if ((puVar3[3] & 0x80000000) == 0) {
+          if ((puVar3[-1] == 500) && (4 < ((byte)puVar3[1] & 0xf))) {
+            possible_lock_and_wait_check_args(crit_section);
+          }
+        }
+        else {
+          FUN_1000795a(crit_section,3,*puVar3);
+        }
+        puVar3 = puVar3 + 6;
+        uVar2 = uVar2 + 1;
+      } while (uVar2 < local_c);
+    }
+  }
+  else {
+    param_3 = (LMCSTR)0x0;
+  }
+  if (local_8 != (LPBYTE)0x0) {
+    NetApiBufferFree(local_8);
+  }
+  return param_3;
+}
+```
+
+Next we turn to the `NetServerEnum` call itself, this subroutine lists all the servers of a given specified type that are visible in a domain.
+
+The level for the `NetServerEnum` call is set to `0x65` which means `101` meaning data is returned as an array of [SERVER_INFO_101](https://docs.microsoft.com/nl-nl/windows/win32/api/lmserver/ns-lmserver-server_info_101) structures. These structures are stored at `local_8`, we therefore also rename and retype `local_8`. 
+
+We also see that `prefmaxlen` is passed as `MAX_PREFERRED_LENGTH` mean it'll determine how much memory to allocate itself.
+
+The total number of entires read will be stored in `local_c` and the total number of visible hosts is stored in `local_14`. Given the length is passed as `MAX_PREFERRED_LENGTH` we expect these to be equal.
+
+The server type to look for is passed as `param_2`. The value of `param_2` passed into this function we recall as `0x80000000` this value maps to `SV_TYPE_DOMAIN_ENUM` which indicates the primary domain.
+
+Lastly `param_3` is passed as the domain to list the servers for. We know that this value was passed as `0` but it seems more likely that this was just missed information by Ghidra as in `FUN_10007c10` the net bios name of the computer is stored but never used.
 
 
 
@@ -4454,8 +4515,8 @@ The subroutine starts with a call to [NetServerEnum](https://docs.microsoft.com/
 
 
 
+# Memory:
 
-Memory:
 - `FUN_100094a5` - only internal reference to `Ordinal_1`
 - `FUN_10009590` - difficult to grasp but invokes `FUN_100094a5`
 - `FUN_1000835e` - contains a killswitch
