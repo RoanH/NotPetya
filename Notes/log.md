@@ -4153,6 +4153,303 @@ The first we see is `iphlpapi.dll` being loaded. If this worked then [GetProcAdd
 
 The next thing we see is the [GetExtendedTcpTable](https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedtcptable) function being invoked. The returned table is stored in the memory that was allocated before hand. The table class requested is `1` this should map to the [TCP_TABLE_BASIC_CONNECTIONS](https://docs.microsoft.com/nl-nl/windows/win32/api/iprtrmib/ne-iprtrmib-tcp_table_class) enum constant which means the function call returns a [MIB_TCPTABLE](https://docs.microsoft.com/nl-nl/windows/win32/api/tcpmib/ns-tcpmib-mib_tcptable) structure. Adding the associated typedef's and retyping the allocated memory makes the following part much clearer.
 
+```cpp
+uint FUN_1000777b(undefined4 crit_section){
+  FARPROC function;
+  HANDLE hHeap;
+  int iVar1;
+  uint uVar2;
+  MIB_TCPTABLE *tcp_table;
+  byte *pbVar3;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  WCHAR local_54 [32];
+  HMODULE handle;
+  MIB_TCPTABLE *table_point_copy;
+  undefined4 table_size;
+  uint local_8;
+  
+  uVar2 = 0;
+  handle = LoadLibraryW(L"iphlpapi.dll");
+  if (handle != (HMODULE)0x0) {
+    function = GetProcAddress(handle,"GetExtendedTcpTable");
+    if (function == (FARPROC)0x0) {
+      GetLastError();
+    }
+    else {
+      dwBytes = 0x100000;
+      dwFlags = 8;
+      table_size = 0x100000;
+      hHeap = GetProcessHeap();
+      tcp_table = (MIB_TCPTABLE *)HeapAlloc(hHeap,dwFlags,dwBytes);
+      table_point_copy = tcp_table;
+      if (tcp_table != (MIB_TCPTABLE *)0x0) {
+        iVar1 = (*function)(tcp_table,&table_size,0,2,1,0);
+        uVar2 = (uint)(iVar1 == 0);
+        if ((iVar1 == 0) && (local_8 = 0, tcp_table->dwNumEntries != 0)) {
+          pbVar3 = (byte *)((int)&tcp_table->table[0].dwRemoteAddr + 2);
+          do {
+            if (*(int *)(pbVar3 + -0xe) == 5) {
+              wsprintfW(local_54,L"%u.%u.%u.%u",(uint)pbVar3[-2],(uint)pbVar3[-1],(uint)*pbVar3,
+                        (uint)pbVar3[1]);
+              possible_lock_and_wait_check_args(crit_section);
+              tcp_table = table_point_copy;
+            }
+            local_8 = local_8 + 1;
+            pbVar3 = pbVar3 + 0x14;
+          } while (local_8 < tcp_table->dwNumEntries);
+        }
+        dwFlags = 0;
+        hHeap = GetProcessHeap();
+        HeapFree(hHeap,dwFlags,tcp_table);
+      }
+    }
+    FreeLibrary(handle);
+  }
+  return uVar2;
+}
+```
+
+We now see a loop over the row entries of the table. For each of the connections returned the remote address is returned although the addressing is totally messed up. We see a check on the remote address to check if `remote_ip + -0xe` is equal to `5`. This is a check on the last remote IP why is unclear though. If the check passed the remote address is formatted as an IP string using relative pointer offsets and then `possible_lock_and_wait_check_args` is invoked.
+
+So to summarise this function checks all open connections to remote hosts and passes those remote IPs to the lock and wait subroutine. It seems appropriate to rename the function `find_remote_infection_candidates`.
+
+### Back to FUN_10007c10
+
+Next we will look at the second function in the loop `FUN_1000786b`.
+
+### FUN_1000786b
+
+```cpp
+undefined4 FUN_1000786b(undefined4 crit_section){
+  int iVar1;
+  HANDLE hHeap;
+  int iVar2;
+  byte *pbVar3;
+  uint *lpMem;
+  byte *pbVar4;
+  undefined4 *puVar5;
+  bool bVar6;
+  bool bVar7;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  WCHAR local_58 [32];
+  undefined4 local_18;
+  undefined4 local_14;
+  uint *local_10;
+  uint local_c;
+  SIZE_T local_8;
+  
+  local_14 = 0;
+  local_8 = 0;
+  iVar1 = GetIpNetTable(0,&local_8,0);
+  if (iVar1 == 0xe8) {
+    local_14 = 0;
+  }
+  else {
+    if (iVar1 == 0x7a) {
+      dwFlags = 0;
+      dwBytes = local_8;
+      hHeap = GetProcessHeap();
+      lpMem = (uint *)HeapAlloc(hHeap,dwFlags,dwBytes);
+      if (lpMem != (uint *)0x0) {
+        local_10 = lpMem;
+        iVar1 = GetIpNetTable(lpMem,&local_8,0);
+        if (iVar1 == 0) {
+          local_14 = 1;
+          local_c = 0;
+          if (*lpMem != 0) {
+            local_18 = 3;
+            pbVar3 = (byte *)((int)lpMem + 0x16);
+            do {
+              iVar2 = 4;
+              bVar6 = false;
+              iVar1 = 0;
+              bVar7 = true;
+              pbVar4 = pbVar3 + 2;
+              puVar5 = &local_18;
+              do {
+                if (iVar2 == 0) break;
+                iVar2 = iVar2 + -1;
+                bVar6 = *pbVar4 < *(byte *)puVar5;
+                bVar7 = *pbVar4 == *(byte *)puVar5;
+                pbVar4 = pbVar4 + 1;
+                puVar5 = (undefined4 *)((int)puVar5 + 1);
+              } while (bVar7);
+              if (!bVar7) {
+                iVar1 = (1 - (uint)bVar6) - (uint)(bVar6 != false);
+              }
+              if (iVar1 == 0) {
+                wsprintfW(local_58,L"%u.%u.%u.%u",(uint)pbVar3[-2],(uint)pbVar3[-1],(uint)*pbVar3,
+                          (uint)pbVar3[1]);
+                possible_lock_and_wait_check_args(crit_section);
+              }
+              local_c = local_c + 1;
+              pbVar3 = pbVar3 + 0x18;
+              lpMem = local_10;
+            } while (local_c < *local_10);
+          }
+        }
+        dwFlags = 0;
+        hHeap = GetProcessHeap();
+        HeapFree(hHeap,dwFlags,lpMem);
+      }
+    }
+  }
+  return local_14;
+}
+```
+
+First we see a call made to [GetIpNetTable](https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getipnettable), normally this would store the returned mapping (ARP table) in the first argument which is supposed to be a pointer. This however seems to not happen in the decompilation result. On close inspection it appears that the signature got `GetIpNetTable` is missing. We first fix this signature.
+
+```cpp
+undefined4 FUN_1000786b(undefined4 crit_section){
+  ULONG UVar1;
+  HANDLE hHeap;
+  int iVar2;
+  int iVar3;
+  byte *pbVar4;
+  PMIB_IPNETTABLE IpNetTable;
+  byte *pbVar5;
+  undefined4 *puVar6;
+  bool bVar7;
+  bool bVar8;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  WCHAR local_58 [32];
+  undefined4 local_18;
+  undefined4 ret_val;
+  PMIB_IPNETTABLE local_10;
+  uint local_c;
+  ULONG local_8;
+  
+  ret_val = 0;
+  local_8 = 0;
+  UVar1 = GetIpNetTable((PMIB_IPNETTABLE)0x0,&local_8,0);
+  if (UVar1 == 0xe8) {
+    ret_val = 0;
+  }
+  else {
+    if (UVar1 == 0x7a) {
+      dwFlags = 0;
+      dwBytes = local_8;
+      hHeap = GetProcessHeap();
+      IpNetTable = (PMIB_IPNETTABLE)HeapAlloc(hHeap,dwFlags,dwBytes);
+      if (IpNetTable != (PMIB_IPNETTABLE)0x0) {
+        local_10 = IpNetTable;
+        UVar1 = GetIpNetTable(IpNetTable,&local_8,0);
+        if (UVar1 == 0) {
+          ret_val = 1;
+          local_c = 0;
+          if (IpNetTable->dwNumEntries != 0) {
+            local_18 = 3;
+            pbVar4 = (byte *)((int)&IpNetTable->table[0].dwAddr + 2);
+            do {
+              iVar3 = 4;
+              bVar7 = false;
+              iVar2 = 0;
+              bVar8 = true;
+              pbVar5 = pbVar4 + 2;
+              puVar6 = &local_18;
+              do {
+                if (iVar3 == 0) break;
+                iVar3 = iVar3 + -1;
+                bVar7 = *pbVar5 < *(byte *)puVar6;
+                bVar8 = *pbVar5 == *(byte *)puVar6;
+                pbVar5 = pbVar5 + 1;
+                puVar6 = (undefined4 *)((int)puVar6 + 1);
+              } while (bVar8);
+              if (!bVar8) {
+                iVar2 = (1 - (uint)bVar7) - (uint)(bVar7 != false);
+              }
+              if (iVar2 == 0) {
+                wsprintfW(local_58,L"%u.%u.%u.%u",(uint)pbVar4[-2],(uint)pbVar4[-1],(uint)*pbVar4,
+                          (uint)pbVar4[1]);
+                possible_lock_and_wait_check_args(crit_section);
+              }
+              local_c = local_c + 1;
+              pbVar4 = pbVar4 + 0x18;
+              IpNetTable = local_10;
+            } while (local_c < local_10->dwNumEntries);
+          }
+        }
+        dwFlags = 0;
+        hHeap = GetProcessHeap();
+        HeapFree(hHeap,dwFlags,IpNetTable);
+      }
+    }
+  }
+  return ret_val;
+}
+```
+
+Given that the pointer is still `NULL` and the result is checked against `0xe8` which maps to`ERROR_NO_DATA` we can assume that this call is just a check to see if the subroutine is usable.
+
+Next we see a check for the same return code being `0x7a` this maps to `ERROR_INSUFFICIENT_BUFFER` which makes sense because the buffer passed was a `NULL` pointer. However this also means that the buffer size that would have been required is stored in `local_8`.
+
+This is followed up by the allocation of a buffer of size `local_8` and then a second call to `GetIpNetTable`.
+
+For all rows of the returned ip net table we then see the `dwAddr` attribute being retrieved which is the IPv4 address of the host. Similar to the previous function this address is convered to string form and then followed by call to `possible_lock_and_wait_check_args`. It seems appropriate to rename the function to `find_infection_candidates_arp`.
+
+### Back to FUN_10007c10
+
+Back in `FUN_10007c10` we now move on the remaining function in the loop `FUN_1000795a` the interesting thing about this function is that it is guarded by a boolean variable that makes it so it only executes once. Which makes the only reason for it being in the loop that it has to be executed after the first execution of the previously investigated subroutines.
+
+### FUN_1000795a
+
+```cpp
+undefined4 FUN_1000795a(undefined4 param_1,undefined4 param_2,undefined4 param_3){
+  int iVar1;
+  uint uVar2;
+  undefined4 *puVar3;
+  undefined4 local_14;
+  undefined4 local_10;
+  uint local_c;
+  LPVOID local_8;
+  
+  local_8 = (LPVOID)0x0;
+  local_c = 0;
+  local_14 = 0;
+  local_10 = 0;
+  iVar1 = NetServerEnum(0,0x65,&local_8,0xffffffff,&local_c,&local_14,param_2,param_3,&local_10);
+  if ((iVar1 == 0) || (iVar1 == 0xea)) {
+    param_3 = 1;
+    if (local_8 == (LPVOID)0x0) {
+      return 1;
+    }
+    uVar2 = 0;
+    if (local_c != 0) {
+      puVar3 = (undefined4 *)((int)local_8 + 4);
+      do {
+        if (puVar3 == (undefined4 *)&DAT_00000004) break;
+        if ((puVar3[3] & 0x80000000) == 0) {
+          if ((puVar3[-1] == 500) && (4 < ((byte)puVar3[1] & 0xf))) {
+            possible_lock_and_wait_check_args(param_1);
+          }
+        }
+        else {
+          FUN_1000795a(param_1,3,*puVar3);
+        }
+        puVar3 = puVar3 + 6;
+        uVar2 = uVar2 + 1;
+      } while (uVar2 < local_c);
+    }
+  }
+  else {
+    param_3 = 0;
+  }
+  if (local_8 != (LPVOID)0x0) {
+    NetApiBufferFree(local_8);
+  }
+  return param_3;
+}
+```
+
+
+
+
+
+
 
 
 
