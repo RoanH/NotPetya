@@ -4506,13 +4506,83 @@ The total number of entires read will be stored in `local_c` and the total numbe
 
 The server type to look for is passed as `param_2`. The value of `param_2` passed into this function we recall as `0x80000000` this value maps to `SV_TYPE_DOMAIN_ENUM` which indicates the primary domain.
 
-Lastly `param_3` is passed as the domain to list the servers for. We know that this value was passed as `0` but it seems more likely that this was just missed information by Ghidra as in `FUN_10007c10` the net bios name of the computer is stored but never used.
+Lastly `param_3` is passed as the domain to list the servers for. We know that this value was passed as `0`. Passing `NULL` here means `NetServerEnum` assumes that the primary domain is implied.
 
+Next we see a guard on the returned value for `0` or `0xea`, `0` and `0xea` maps to `ERROR_MORE_DATA`. These two effectively represent the two cases where there is data returned. We also see that at this point `domain` is assigned a `1` and is later on returned as the return value. A return value of `1` is also returned when the returned server information equals a `NULL` pointer.
 
+If these checks pass and the total number of entires read is not 0 then `ppWVar3` is assigned the memory address of the server name. If the address is equal to `(LMSTR *)&DAT_00000004` then the loop over the list of servers is broken.
 
+The actual instructions behind this are.
 
+```
+                             LAB_100079a1                                    XREF[2]:     10007993(j), 1000799a(j)  
+        100079a1 8b 7d fc        MOV        EDI,dword ptr [EBP + servers]
+        100079a4 c7 45 10        MOV        dword ptr [EBP + domain],0x1
+                 01 00 00 00
+        100079ab 3b fe           CMP        EDI,ESI
+        100079ad 74 5f           JZ         LAB_10007a0e
+        100079af 53              PUSH       EBX
+        100079b0 33 db           XOR        EBX,EBX
+        100079b2 39 75 f8        CMP        dword ptr [EBP + entries_read],ESI
+        100079b5 76 48           JBE        LAB_100079ff
+        100079b7 83 c7 04        ADD        EDI,0x4
+                             LAB_100079ba                                    XREF[1]:     100079fd(j)  
+        100079ba 8d 47 fc        LEA        EAX,[EDI + -0x4]
+        100079bd 85 c0           TEST       EAX,EAX
+        100079bf 74 3e           JZ         LAB_100079ff
+```
 
+The main reason that this is relevant is because `DAT_00000004` isn't actually part of the program (because Ghidra starts at 10000000). However this doesn't exactly look like a data field either. The actual test that breaks the loop is `TEST EAX,EAX` and only if EAX is `0`. We also know the value of `EAX` to be `LEA EAX,[EDI + -0x4]`. And since we know `EDI` to hold `servers` this loads the address of the `sv101_platform_id` field of the `SERVER_INFO_101` structure. Effectively this could function as a `NULL` check, but the correlation with the decompilation result is questionable at best.
 
+The next guard checks offset `ppWVar3[3]` which refers to the `sv101_type` property to `0x80000000` this effectively allows anything except for `SV_TYPE_DOMAIN_ENUM` to pass (primary domain).
+
+Assuming that check passed a check is also executed with `ppWVar3[-1]` which refers to `sv101_platform_id` and is checked against `0x1f4` which maps to `PLATFORM_ID_NT` meaning only Windows NT platform servers are accepted.
+
+The second guard is `(4 < ((byte)ppWVar3[1] & 0xf))`, here `ppWVar3[1]` refers to the `sv101_version_major` field. The `0xf` represents the `MAJOR_VERSION_MASK` which has to be used to extract the major version number of the member. After doing this all it is checked if the major version if greater than `4`. This only allows versions of Windows `Windows 2000` and newer to pass.
+
+If both guards are passed then `possible_lock_and_wait_check_args` is invoked (and since this is in a loop that would happen for all servers).
+
+Alternatively if the type checked failed and the server type is in fact `SV_TYPE_DOMAIN_ENUM` then `FUN_1000795a` is invoked with the name of the server in the current interation as the `domain` name and the `server_type` set to `3`. Note that a server type of `3` is the bitwise combination of `SV_TYPE_WORKSTATION` and `SV_TYPE_SERVER`.
+
+So then to summarize this is a recursive function with two stages, the first stage finds `SV_TYPE_DOMAIN_ENUM` hosts and the domains these are associated with are then used to find other hosts of type `SV_TYPE_WORKSTATION` and `SV_TYPE_SERVER` recursively (second recursion level). All of these hosts then have to pass some NT version checks before they lead to `possible_lock_and_wait_check_args` being invoked. We will rename this subroutine to `find_infection_candidates_via_domain`.
+
+### Back to FUN_10007c10
+
+Back in `FUN_10007c10` we will rename it to `find_infection_candidates` to obtain the following result.
+
+```cpp
+void find_infection_candidates(void){
+  bool bVar1;
+  LPVOID lpParameter;
+  BOOL BVar2;
+  WCHAR net_bios_name [260];
+  DWORD local_8;
+  
+  lpParameter = critical_section_no_extra_debug;
+  possible_lock_and_wait_check_args(critical_section_no_extra_debug);
+  possible_lock_and_wait_check_args(lpParameter);
+  local_8 = 0x104;
+  BVar2 = GetComputerNameExW(ComputerNamePhysicalNetBIOS,net_bios_name,&local_8);
+  if (BVar2 != 0) {
+    possible_lock_and_wait_check_args(lpParameter);
+  }
+  CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,find_infection_candidates,lpParameter,0,(LPDWORD)0x0);
+  bVar1 = false;
+  do {
+    find_remote_infection_candidates(lpParameter);
+    find_infection_candidates_arp(lpParameter);
+    if (!bVar1) {
+      find_infection_candidates_via_domain(lpParameter,0x80000000,0);
+      bVar1 = true;
+    }
+    Sleep(180000);
+  } while( true );
+}
+```
+
+Although we do not directly see anything get infected it is highly likely that this thread is responsible for finding other targets that may be vulnerable to EternalBlue.
+
+### Back to Ordinal_1
 
 
 # Memory:
