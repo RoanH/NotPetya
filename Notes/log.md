@@ -4593,8 +4593,12 @@ Although we do not directly see anything get infected it is highly likely that t
 - `FUN_10008d5a` - `destroy_boot` rip everyone
 - `FUN_10001038` - could be revisited as we now have more information
 - `possible_lock` - seems related to passing around new hosts to infect but no read function has been found yet. Also possible that the function itself does this but in that case it is strange for there to be no clear networking related logic.
+- `handle_color_arg` - these arguments were passed to the lock functions, we now know these often take in IP addresses, the main thing I can think of with a `:` in it that is then related is a an adress of the form `IP:PORT`.
 
-
+##### Late renames
+- `FUN_10001038` to `something_with_drive_path` (probably prepares the drive path)
+- `FUN_10009590` to `possible_restart_from_in_memory_copy` (probably restarts the malware from memory)
+- `FUN_100094a5` to `delete_dll_and_invoke_Ordinal_1` (probably switches control from the old on disk dll to the one in memory)
 
 
 
