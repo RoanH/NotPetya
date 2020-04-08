@@ -4765,6 +4765,286 @@ In the Ghidra we see that if the `FindResourceW` call succeeds then `FUN_100085d
 
 ### FUN_100085d0
 
+```cpp
+undefined4 FUN_100085d0(SIZE_T *param_1,HRSRC resource){
+  HGLOBAL hResData;
+  HRSRC *ppHVar1;
+  DWORD dwFlags;
+  HANDLE hHeap;
+  LPVOID lpMem;
+  int iVar2;
+  LPVOID *unaff_EBX;
+  DWORD dwFlags_00;
+  HRSRC dwBytes;
+  undefined4 local_8;
+  
+  local_8 = 0;
+  hResData = LoadResource(DLL_handle,resource);
+  if (((hResData != (HGLOBAL)0x0) &&
+      (ppHVar1 = (HRSRC *)LockResource(hResData), ppHVar1 != (HRSRC *)0x0)) &&
+     (dwFlags = SizeofResource(DLL_handle,resource), dwFlags != 0)) {
+    dwBytes = *ppHVar1;
+    dwFlags_00 = 8;
+    hHeap = GetProcessHeap();
+    lpMem = HeapAlloc(hHeap,dwFlags_00,(SIZE_T)dwBytes);
+    *unaff_EBX = lpMem;
+    if (lpMem != (LPVOID)0x0) {
+      resource = *ppHVar1;
+      iVar2 = FUN_1000a520(lpMem,&resource,(uint *)(ppHVar1 + 1),dwFlags - 4);
+      if (iVar2 == 0) {
+        if (param_1 != (SIZE_T *)0x0) {
+          *(HRSRC *)param_1 = resource;
+        }
+        local_8 = 1;
+      }
+      else {
+        lpMem = *unaff_EBX;
+        dwFlags = 0;
+        hHeap = GetProcessHeap();
+        HeapFree(hHeap,dwFlags,lpMem);
+      }
+    }
+  }
+  return local_8;
+}
+```
+
+This subroutine looks relatevely straight forward. The resource is first loaded and then locked. This is followed up by allocating some memory. The exact amount is equal to the double word of the resource. Looking at resource `2` this is `00 DC 00 00`.
+
+```
+00000000   00 DC 00 00  78 DA EC BD  79 7C 54 45  D6 30 7C 3B  ....x...y|TE.0|;
+```
+
+We can then compute that `00DC0000` bytes in hex is `14417920` bytes or 14080 KB or 13 MB. This appears to be quite a lot (could be less if we have a little vs big endian issue here).
+
+After this we see a call to `FUN_1000a520` with the allocated memory, resource address pointer (`ppHVar1`, pointer to the resource in memory but offset by `1` so skipping the first double word we used to allocate memory and the size of the resource minus `4` so again skipping the double word that was used to allocate memory.
+
+### FUN_1000a520
+
+```cpp
+int FUN_1000a520(LPVOID memory,undefined4 *resource,uint *res_pointer_offset,
+                int res_size_from_pointer){
+  int iVar1;
+  uint *local_3c;
+  int local_38;
+  LPVOID local_30;
+  undefined4 local_2c;
+  undefined4 local_28;
+  undefined4 local_1c;
+  undefined4 local_18;
+  
+  local_1c = 0;
+  local_18 = 0;
+  local_3c = res_pointer_offset;
+  local_38 = res_size_from_pointer;
+  local_30 = memory;
+  local_2c = *resource;
+  iVar1 = FUN_1000bb31((int)&local_3c,"1.2.8",0x38);
+  if (iVar1 == 0) {
+    iVar1 = FUN_1000a5cc(&local_3c,4);
+    if (iVar1 == 1) {
+      *resource = local_28;
+      iVar1 = FUN_1000ba60((int)&local_3c);
+    }
+    else {
+      FUN_1000ba60((int)&local_3c);
+      if ((iVar1 == 2) || ((iVar1 == -5 && (local_38 == 0)))) {
+        iVar1 = -3;
+      }
+    }
+  }
+  return iVar1;
+}
+```
+
+The first thing we see is a call to `FU_1000bb31` with the offset resource pointer that was passed. We also see the string `1.2.8` and number `0x38` being passed.
+
+### FUN_1000bb31
+
+```cpp
+void FUN_1000bb31(int param_1,char *param_2,int param_3){
+  FUN_1000baa4(param_1,0xf,param_2,param_3);
+  return;
+}
+```
+
+This function doesn't really appear to do a lot other than delegating everything an other function and adding a `0xf` argument for the second parameter.
+
+### FUN_1000baa4
+
+```cpp
+int FUN_1000baa4(int param_1,uint param_2,char *param_3,int param_4){
+  int iVar1;
+  int iVar2;
+  
+  if (((param_3 == (char *)0x0) || (*param_3 != '1')) || (param_4 != 0x38)) {
+    iVar2 = -6;
+  }
+  else {
+    if (param_1 == 0) {
+      iVar2 = -2;
+    }
+    else {
+      *(undefined4 *)(param_1 + 0x18) = 0;
+      if (*(int *)(param_1 + 0x20) == 0) {
+        *(undefined4 *)(param_1 + 0x20) = 0x1000c223;
+        *(undefined4 *)(param_1 + 0x28) = 0;
+      }
+      if (*(int *)(param_1 + 0x24) == 0) {
+        *(undefined4 *)(param_1 + 0x24) = 0x1000c236;
+      }
+      iVar1 = (**(code **)(param_1 + 0x20))(*(undefined4 *)(param_1 + 0x28),1,0x1bcc);
+      if (iVar1 == 0) {
+        iVar2 = -4;
+      }
+      else {
+        *(int *)(param_1 + 0x1c) = iVar1;
+        *(undefined4 *)(iVar1 + 0x34) = 0;
+        iVar2 = FUN_1000bb48(param_1,param_2);
+        if (iVar2 != 0) {
+          (**(code **)(param_1 + 0x24))(*(undefined4 *)(param_1 + 0x28),iVar1);
+          *(undefined4 *)(param_1 + 0x1c) = 0;
+        }
+      }
+    }
+  }
+  return iVar2;
+}
+```
+
+Unfortunately this function appears to be referencing functions from the resource that was loaded earlier. However because Ghidra does of course not know about these functions everything appears as pointers and offsets.
+
+So next we will try to open resource `2` in Ghidra, for this we will have to guess the architecture and type of the binary. Given that we don't really have anything to go off we'll try guess the same as the NotPetya binary itself `x86:LE:32:default:windows`.
+
+Unfortunately this guess failed for both extracted binaries. This also means we will probably have a hard time analyzing this specific subroutine. We do not think that it is worth the time and effort to figure out how to decompile the resources at this point in time.
+
+As for the function the first thing we see is a check on the passed arguments, this ensure that they are actually what we passed in and not `NULL`. Why `param_4` was passed at all and not just declared in this subroutine is unclear though.
+
+As for the main functionality of the code we see that all offsets are fairly low so we'll try to gather as much information as possible by inspecting resource `2` using a hex editor.
+
+```
+00000000   00 DC 00 00  78 DA EC BD  79 7C 54 45  D6 30 7C 3B  ....x...y|TE.0|;
+00000010   DD 9D 74 42  9A DB 2C 0D  11 88 B4 18  34 12 96 60  ..tB..,.....4..`
+00000020   54 12 9B 68  5F E8 86 DB  70 1B A3 AC  8E A0 40 20  T..h_...p.....@
+00000030   C4 91 25 26  B7 59 04 94  D8 89 D2 94  AD 38 AE A3  ..%&.Y.......8..
+00000040   8E E3 AC 32  AB 3A 33 8F  04 70 C9 02  24 61 0D A8  ...2.:3..p..$a..
+00000050   18 88 4A DC  86 1B 1B 25  22 42 58 F4  7E E7 9C BA  ..J....%"BX.~...
+```
+
+The function starts with a few assignments. The first function call is.
+
+```cpp
+iVar1 = (**(code **)(param_1 + 0x20))(*(undefined4 *)(param_1 + 0x28),1,0x1bcc);
+```
+
+What this subroutine does is of course unknown, but it looks like a status check. If the check passed we end up in the else branch where we see more assignments and a call to `FUN_1000bb48`.
+
+### FUN_1000bb48
+
+```cpp
+undefined4 FUN_1000bb48(int param_1,uint param_2){
+  int iVar1;
+  int iVar2;
+  undefined4 uVar3;
+  
+  iVar2 = param_1;
+  if ((param_1 != 0) && (iVar1 = *(int *)(param_1 + 0x1c), iVar1 != 0)) {
+    if ((int)param_2 < 0) {
+      param_1 = 0;
+      param_2 = -param_2;
+    }
+    else {
+      param_1 = ((int)param_2 >> 4) + 1;
+      if ((int)param_2 < 0x30) {
+        param_2 = param_2 & 0xf;
+      }
+    }
+    if ((param_2 == 0) || ((7 < (int)param_2 && ((int)param_2 < 0x10)))) {
+      if ((*(int *)(iVar1 + 0x34) != 0) && (*(uint *)(iVar1 + 0x24) != param_2)) {
+        (**(code **)(iVar2 + 0x24))(*(undefined4 *)(iVar2 + 0x28),*(undefined4 *)(iVar1 + 0x34));
+        *(undefined4 *)(iVar1 + 0x34) = 0;
+      }
+      *(int *)(iVar1 + 8) = param_1;
+      *(uint *)(iVar1 + 0x24) = param_2;
+      uVar3 = FUN_1000bbbf(iVar2);
+      return uVar3;
+    }
+  }
+  return 0xfffffffe;
+}
+```
+
+Unfortuantely this function isn't much better. We again see a few input status checks but we don't neccesarily know what they are checking. So far all the assignments are internal to the binary however. So no external fields are assigned a value at all so far. Most likely this binary is made to do something and not to computer and return something. At the end we see a call to `FUN_1000bbbf` with only the the original `param_1` passed.
+
+### FUN_1000bbbf
+
+```cpp
+undefined4 FUN_1000bbbf(int param_1){
+  int iVar1;
+  undefined4 uVar2;
+  
+  if ((param_1 == 0) || (iVar1 = *(int *)(param_1 + 0x1c), iVar1 == 0)) {
+    uVar2 = 0xfffffffe;
+  }
+  else {
+    *(undefined4 *)(iVar1 + 0x28) = 0;
+    *(undefined4 *)(iVar1 + 0x2c) = 0;
+    *(undefined4 *)(iVar1 + 0x30) = 0;
+    uVar2 = FUN_1000bbea(param_1);
+  }
+  return uVar2;
+}
+```
+
+This subroutien also appears to follow the familiar format, the input is checked, some assignments are made and then a nested function is called, in this case `FUN_1000bbea`.
+
+### FUN_1000bbea
+
+```cpp
+undefined4 FUN_1000bbea(int param_1){
+  undefined4 *puVar1;
+  undefined4 *puVar2;
+  undefined4 uVar3;
+  
+  if ((param_1 == 0) || (puVar2 = *(undefined4 **)(param_1 + 0x1c), puVar2 == (undefined4 *)0x0)) {
+    uVar3 = 0xfffffffe;
+  }
+  else {
+    puVar2[7] = 0;
+    *(undefined4 *)(param_1 + 0x14) = 0;
+    *(undefined4 *)(param_1 + 8) = 0;
+    *(undefined4 *)(param_1 + 0x18) = 0;
+    if (puVar2[2] != 0) {
+      *(uint *)(param_1 + 0x30) = puVar2[2] & 1;
+    }
+    puVar2[0x6f1] = 0xffffffff;
+    puVar1 = puVar2 + 0x14c;
+    *puVar2 = 0;
+    puVar2[1] = 0;
+    puVar2[3] = 0;
+    puVar2[8] = 0;
+    puVar2[0xe] = 0;
+    puVar2[0xf] = 0;
+    *(undefined4 **)(puVar2 + 0x1b) = puVar1;
+    *(undefined4 **)(puVar2 + 0x14) = puVar1;
+    *(undefined4 **)(puVar2 + 0x13) = puVar1;
+    uVar3 = 0;
+    puVar2[5] = 0x8000;
+    puVar2[0x6f0] = 1;
+  }
+  return uVar3;
+}
+```
+
+Looks like this function is the last of this chain. Interestingly enough it contains no function calls and only has assignments.
+
+Given that we currently do not have the means to properly analyse these functions we will have to stop here. The important take aways are that the extracted resource binary does something, returns nothing and 
+
+
+
+
+
+
 
 
 
