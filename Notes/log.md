@@ -7346,7 +7346,7 @@ This again matches the zlib implementation for `updatewindow`.
 
 Having renamed all the suroutines referenced by this subroutine we can now rename the function itself. It is called `inflate` and it is the main decompression function from zlib. 
 
-### back to FUN_1000a520
+### Back to FUN_1000a520
 
 ```cpp
 int FUN_1000a520(LPVOID memory,undefined4 *resource,uint *res_pointer_offset,
