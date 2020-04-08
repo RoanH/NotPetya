@@ -4719,15 +4719,51 @@ void FUN_10007545(void){
 }
 ```
 
+This function starts with getting a handle to `kernel32.dll` and the address of the `IsWow64Process` subroutine.
 
+Consequently the [IsWow64Process](https://docs.microsoft.com/en-us/windows/win32/api/wow64apiset/nf-wow64apiset-iswow64process) subroutine is invoked and the result stored in `local_14`. This means that `local_14` will be set to true if the processes is running using the [WOW64](https://docs.microsoft.com/nl-nl/windows/win32/winprog64/running-32-bit-applications) emulator which is a part of windows that allows running 32bit applications on a 64bit system.
 
+Next we see a call to [FindResourceW](https://docs.microsoft.com/en-us/windows/win32/shell/findresourcewrapw) to determine the location of some resource inside the DLL. The type is passed as `0xa` which maps to [RT_RCDATA](https://docs.microsoft.com/en-us/windows/win32/menurc/resource-types) meaning raw data. The name of the resource is either `1` (if not using WOW64) or `2` (if using WOW64). Presumably both refer to the same resource but one is hte 32bit version and the other the 64bit version so only the correct one for the host system is used.
 
+In order to find these resources we use a tool called `wrestool` and run it on the malware file.
 
+```
+roan@roanXPS:~/Downloads/2IC80/Project$ wrestool 027cc450ef5f8c5f653329641ec1fed91f694e0d229928963b30f6b0d7d3a745
+--type=10 --name=1 --language=1033 [type=rcdata offset=0x200e8 size=24958]
+--type=10 --name=2 --language=1033 [type=rcdata offset=0x26268 size=27426]
+--type=10 --name=3 --language=1033 [type=rcdata offset=0x2cd8c size=191605]
+--type=10 --name=4 --language=1033 [type=rcdata offset=0x5ba04 size=3379]
+```
 
+We can clearly see the resources we were expecting here, we also see that two more resources named `3` and `4` also exist. For now however we will extract resource `2` mostly because the malware dll was 32bit, but in reality the one we extract does not matter.
 
+We first start by extracting `2`.
 
+```
+roan@roanXPS:~/Downloads/2IC80/Project$ wrestool --name=2 -R -x 027cc450ef5f8c5f653329641ec1fed91f694e0d229928963b30f6b0d7d3a745 > 2.bin
+```
 
+Running `file` on the extract resource reveals that it is just data.
 
+```
+roan@roanXPS:~/Downloads/2IC80/Project$ file 2.bin 
+2.bin: data
+```
+
+Using `hexedit` to inspect the file we do not really find anything special either. Just to be safe we will also look at resource `1` to make sure that this one isn't anything special.
+
+```
+roan@roanXPS:~/Downloads/2IC80/Project$ wrestool --name=1 -R -x 027cc450ef5f8c5f653329641ec1fed91f694e0d229928963b30f6b0d7d3a745 > 1.bin
+roan@roanXPS:~/Downloads/2IC80/Project$ file 1.bin
+1.bin: data
+roan@roanXPS:~/Downloads/2IC80/Project$ hexedit 1.bin
+```
+
+This resource is not really any different from `2` so for now we'll return to the decompiled code as this might provide an insight into what these resources are used for.
+
+In the Ghidra we see that if the `FindResourceW` call succeeds then `FUN_100085d0` is invoked with the resource and a `SIZE_T` pointer to most likely store a return value in.
+
+### FUN_100085d0
 
 
 
