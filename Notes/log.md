@@ -4548,10 +4548,10 @@ So then to summarize this is a recursive function with two stages, the first sta
 
 ### Back to FUN_10007c10
 
-Back in `FUN_10007c10` we will rename it to `find_infection_candidates` to obtain the following result.
+Back in `FUN_10007c10` we will rename it to `find_infection_candidates_on_network` to obtain the following result.
 
 ```cpp
-void find_infection_candidates(void){
+void find_infection_candidates_on_network(void){
   bool bVar1;
   LPVOID lpParameter;
   BOOL BVar2;
