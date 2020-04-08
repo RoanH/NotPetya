@@ -6202,7 +6202,105 @@ LAB_1000ac63:
 }
 ```
 
-The first thing we note here is that this subroutine is huge.
+The first thing we note here is that this subroutine is huge. If this subroutine ends up invoking important functions on the binary then we might have a really hard time gathering useful information. In addition this appears to be huge switch statement which will make it rather hard to follow due to all the goto statements.
+
+In the first switch case we pretty much immediately run into a function call to `FUN_1000bf51`. Moreover this call does not involve the pointer to the binary, so maybe it can give us some information.
+
+### FUN_1000bf51
+
+```cpp
+uint FUN_1000bf51(uint param_1,uint *param_2,uint param_3){
+  uint uVar1;
+  
+  if (param_2 == (uint *)0x0) {
+    uVar1 = 0;
+  }
+  else {
+    uVar1 = FUN_1000bf73(param_1,param_2,param_3);
+  }
+  return uVar1;
+}
+```
+
+We see that if the second parameter is `NULL` then `0` is returned. For the specific call to this function we came from this appears to be the case, which begs the question of why this function is called at all, maybe Ghidra just failed to identify an argument.
+
+If the second parameters is not `NULL` then the result of invoking `FUN_1000bf73` is returned.
+
+### FUN_1000bf73
+
+```cpp
+uint __cdecl FUN_1000bf73(uint param_1,uint *param_2,uint param_3){
+  uint uVar1;
+  uint uVar2;
+  
+  uVar2 = ~param_1;
+  while ((param_3 != 0 && (((uint)param_2 & 3) != 0))) {
+    uVar2 = uVar2 >> 8 ^ *(uint *)(&DAT_1000dd60 + ((*(byte *)param_2 ^ uVar2) & 0xff) * 4);
+    param_2 = (uint *)((int)param_2 + 1);
+    param_3 = param_3 - 1;
+  }
+  if (0x1f < param_3) {
+    param_1 = param_3 >> 5;
+    do {
+      uVar2 = uVar2 ^ *param_2;
+      uVar2 = *(uint *)(&DAT_1000e160 + (uVar2 >> 0x10 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000e560 + (uVar2 >> 8 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000dd60 + (uVar2 >> 0x18) * 4) ^
+              *(uint *)(&DAT_1000e960 + (uVar2 & 0xff) * 4) ^ param_2[1];
+      uVar2 = *(uint *)(&DAT_1000e160 + (uVar2 >> 0x10 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000e560 + (uVar2 >> 8 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000dd60 + (uVar2 >> 0x18) * 4) ^
+              *(uint *)(&DAT_1000e960 + (uVar2 & 0xff) * 4) ^ param_2[2];
+      uVar2 = *(uint *)(&DAT_1000e160 + (uVar2 >> 0x10 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000e560 + (uVar2 >> 8 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000dd60 + (uVar2 >> 0x18) * 4) ^
+              *(uint *)(&DAT_1000e960 + (uVar2 & 0xff) * 4) ^ param_2[3];
+      uVar2 = *(uint *)(&DAT_1000e160 + (uVar2 >> 0x10 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000e560 + (uVar2 >> 8 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000dd60 + (uVar2 >> 0x18) * 4) ^
+              *(uint *)(&DAT_1000e960 + (uVar2 & 0xff) * 4) ^ param_2[4];
+      uVar2 = *(uint *)(&DAT_1000e160 + (uVar2 >> 0x10 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000e560 + (uVar2 >> 8 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000dd60 + (uVar2 >> 0x18) * 4) ^
+              *(uint *)(&DAT_1000e960 + (uVar2 & 0xff) * 4) ^ param_2[5];
+      param_3 = param_3 - 0x20;
+      uVar2 = *(uint *)(&DAT_1000e160 + (uVar2 >> 0x10 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000e560 + (uVar2 >> 8 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000dd60 + (uVar2 >> 0x18) * 4) ^
+              *(uint *)(&DAT_1000e960 + (uVar2 & 0xff) * 4) ^ param_2[6];
+      uVar2 = *(uint *)(&DAT_1000e160 + (uVar2 >> 0x10 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000e560 + (uVar2 >> 8 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000dd60 + (uVar2 >> 0x18) * 4) ^
+              *(uint *)(&DAT_1000e960 + (uVar2 & 0xff) * 4) ^ param_2[7];
+      param_2 = param_2 + 8;
+      uVar2 = *(uint *)(&DAT_1000e160 + (uVar2 >> 0x10 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000e560 + (uVar2 >> 8 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000dd60 + (uVar2 >> 0x18) * 4) ^
+              *(uint *)(&DAT_1000e960 + (uVar2 & 0xff) * 4);
+      param_1 = param_1 - 1;
+    } while (param_1 != 0);
+  }
+  if (3 < param_3) {
+    uVar1 = param_3 >> 2;
+    do {
+      uVar2 = uVar2 ^ *param_2;
+      param_3 = param_3 - 4;
+      param_2 = param_2 + 1;
+      uVar2 = *(uint *)(&DAT_1000e160 + (uVar2 >> 0x10 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000e560 + (uVar2 >> 8 & 0xff) * 4) ^
+              *(uint *)(&DAT_1000dd60 + (uVar2 >> 0x18) * 4) ^
+              *(uint *)(&DAT_1000e960 + (uVar2 & 0xff) * 4);
+      uVar1 = uVar1 - 1;
+    } while (uVar1 != 0);
+  }
+  while (param_3 != 0) {
+    uVar2 = uVar2 >> 8 ^ *(uint *)(&DAT_1000dd60 + ((*(byte *)param_2 ^ uVar2) & 0xff) * 4);
+    param_2 = (uint *)((int)param_2 + 1);
+    param_3 = param_3 - 1;
+  }
+  return ~uVar2;
+}
+```
 
 
 
