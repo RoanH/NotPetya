@@ -8134,6 +8134,102 @@ undefined8 FUN_140002554(int param_1,longlong param_2){
 - `FUN_10009590` to `possible_restart_from_in_memory_copy` (probably restarts the malware from memory)
 - `FUN_100094a5` to `delete_dll_and_invoke_Ordinal_1` (probably switches control from the old on disk dll to the one in memory)
 
+##### Side trip
+
+After learning more about custom data storage in Ghidra we take another look at the `possible_lock` functiosn in order to see if fixing the data passing via registers makes anything clearer.
+
+**possible_lock_and_wait_check_args**
+
+We know that this subroutine gets an argument via `EAX` and `ESI` so we add custom storage for both of these. This yields.
+
+```cpp
+undefined4 possible_lock_and_wait_check_args(LPCRITICAL_SECTION param_1,short *param_2,undefined4 param_3){
+  short sVar1;
+  undefined4 uVar2;
+  short *psVar3;
+  short local_28 [16];
+  
+  if ((param_2 == (short *)0x0) || (*param_2 == 0)) {
+    uVar2 = 0;
+  }
+  else {
+    psVar3 = (short *)((int)local_28 - (int)param_2);
+    do {
+      sVar1 = *param_2;
+      *(short *)((int)psVar3 + (int)param_2) = sVar1;
+      param_2 = param_2 + 1;
+    } while (sVar1 != 0);
+    uVar2 = possible_lock_and_wait(param_1,local_28,param_3);
+  }
+  return uVar2;
+}
+```
+
+In addition this will make any function calling this function a lot easier to analyse
+
+**possible_lock**
+
+This subroutine takes an arguemnt via `EAX` and `ESI` so lets add this using custom storage to the function signature. This results in.
+
+```cpp
+int possible_lock(undefined4 param_1,undefined4 *param_2,LPCRITICAL_SECTION param_3,uint param_4){
+  uint uVar1;
+  int local_8;
+  
+  local_8 = 0;
+  if (param_3 != (LPCRITICAL_SECTION)0x0) {
+    EnterCriticalSection(param_3);
+    uVar1 = param_4;
+    if (param_4 < (int)param_3[1].OwningThread + param_4) {
+      do {
+        local_8 = (*(code *)param_3[1].SpinCount)
+                            (**(undefined4 **)
+                               (&(param_3[1].DebugInfo)->Type +
+                               (uVar1 % (uint)param_3[1].OwningThread) * 2),param_1,
+                             param_3[1].LockCount);
+        if (local_8 != 0) {
+          if (param_2 != (undefined4 *)0x0) {
+            *param_2 = *(undefined4 *)
+                        (&(param_3[1].DebugInfo)->Type + (uVar1 % (uint)param_3[1].OwningThread) * 2
+                        );
+          }
+          break;
+        }
+        uVar1 = uVar1 + 1;
+      } while (uVar1 < (int)param_3[1].OwningThread + param_4);
+    }
+    LeaveCriticalSection(param_3);
+  }
+  return local_8;
+}
+```
+
+This should help a lot especially for the calling function `possible_lock_and_wait` where we see that data passed is just the passed `LPCRITICAL_SECTION` and `0`.
+
+```cpp
+iVar1 = possible_lock(param_2,(undefined4 *)0x0,param_1,0);
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
