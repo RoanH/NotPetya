@@ -11,3 +11,6 @@ ooanalyzer/
 2.bin
 3.bin
 4.bin
+
+# Processed resources
+res2out.bin

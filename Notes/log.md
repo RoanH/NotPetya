@@ -7783,11 +7783,81 @@ Given the information we have right now we might be able to get more information
 We already know the first 32 bits are used for something else. And what we see right after that is `78 DA` which is one of the possible zlib headers. We will try to strip off the first 32 bits from the file and try to decompress the remainder.
 
 ```
-dd if=2.bin of=res2.bin bs=1 skip=4
+roan@roanXPS:~/Downloads/2IC80/Project$ dd if=2.bin of=res2.bin bs=1 skip=4
+27422+0 records in
+27422+0 records out
+27422 bytes (27 kB, 27 KiB) copied, 0,0590109 s, 465 kB/s
 ```
 
+Next we run `file` again.
 
+```
+roan@roanXPS:~/Downloads/2IC80/Project$ file res2.bin
+res2.bin: zlib compressed data
+```
 
+It seems like this worked, at the very least the headers are recognized now. Next we will try to decompress it.
+
+```
+roan@roanXPS:~/Downloads/2IC80/Project$ zlib-flate -uncompress < res2.bin > res2out.bin
+```
+
+This seems to have worked, so next we will try to open this file up in Ghidra. This time Ghidra immediately recognized the file as a 32 bit portable executable. So next we run the analyzer and are greeted with a famliar message.
+
+> PDB> Incomplete PDB information (GUID/Signature and/or age) associated with this program.
+> Either the program is not a PE, or it was not compiled with debug information.
+> Windows x86 PE RTTI Analyzer> Couldn't find type info structure.
+
+It also looks like there is only a single exported function, this being the `entry` function. The binary also appears to be surprisingly large.
+
+```cpp
+ulonglong entry(void){
+  int iVar1;
+  ulonglong uVar2;
+  
+  __security_init_cookie();
+  iVar1 = _heap_init();
+  if (iVar1 == 0) {
+    if (DAT_14000f510 != 2) {
+      _FF_MSGBANNER();
+    }
+    _NMSG_WRITE(0x1c);
+    __crtExitProcess(0xff);
+  }
+  iVar1 = _mtinit();
+  if (iVar1 == 0) {
+    if (DAT_14000f510 != 2) {
+      _FF_MSGBANNER();
+    }
+    _NMSG_WRITE(0x10);
+    __crtExitProcess(0xff);
+  }
+  _RTC_Initialize();
+  iVar1 = _ioinit();
+  if (iVar1 < 0) {
+    _amsg_exit(0x1b);
+  }
+  DAT_140010918 = GetCommandLineW();
+  DAT_14000f508 = __crtGetEnvironmentStringsW();
+  iVar1 = _wsetargv();
+  if (iVar1 < 0) {
+    _amsg_exit(8);
+  }
+  iVar1 = _wsetenvp();
+  if (iVar1 < 0) {
+    _amsg_exit(9);
+  }
+  iVar1 = _cinit(1);
+  if (iVar1 != 0) {
+    _amsg_exit(iVar1);
+  }
+  _DAT_14000f578 = DAT_14000f570;
+  uVar2 = FUN_140002554(DAT_14000f54c,DAT_14000f558);
+  FUN_140005bec((UINT)uVar2);
+  _cexit();
+  return uVar2 & 0xffffffff;
+}
+```
 
 
 
