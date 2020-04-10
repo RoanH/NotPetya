@@ -7808,7 +7808,219 @@ This seems to have worked, so next we will try to open this file up in Ghidra. T
 > Either the program is not a PE, or it was not compiled with debug information.
 > Windows x86 PE RTTI Analyzer> Couldn't find type info structure.
 
-It also looks like there is only a single exported function, this being the `entry` function. The binary also appears to be surprisingly large.
+It also looks like there is only a single exported function, this being the `entry` function. The binary also appears to be surprisingly large. The analysis of the binary will be at the end of this log file.
+
+Continuing with `FUN_10007545` we next see a call to [WaitForSingleObject](https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject) to wait at most one minute for the newly started process to complete execution. After which `FUN_100070fa` is invoked.
+
+### FUN_100070fa
+
+```
+undefined4 FUN_100070fa(void){
+  LPCRITICAL_SECTION unaff_ESI;
+  
+  if (unaff_ESI != (LPCRITICAL_SECTION)0x0) {
+    EnterCriticalSection(unaff_ESI);
+    InterlockedExchange((LONG *)&unaff_ESI[1].LockSemaphore,1);
+    LeaveCriticalSection(unaff_ESI);
+    return 1;
+  }
+  return 0;
+}
+```
+
+This function appears to invoke [InterlockedExchange](https://docs.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-interlockedexchange) to set a `LockSemaphore` passed via the `ESI` register to `1`. We can manually modify the function signature to take an argument passed via `ESI` using Ghidra's custom storage option to obtain the following result.
+
+```cpp
+undefined4 FUN_100070fa(LPCRITICAL_SECTION param_1){
+  if (param_1 != (LPCRITICAL_SECTION)0x0) {
+    EnterCriticalSection(param_1);
+    InterlockedExchange((LONG *)&param_1[1].LockSemaphore,1);
+    LeaveCriticalSection(param_1);
+    return 1;
+  }
+  return 0;
+}
+```
+
+Back in `FUN_10007545` we also see that the call changed to.
+
+```cpp
+FUN_100070fa(critical_section_with_extra_debug);
+```
+
+So at least we now know where the critical section came from. We will also rename the function to `lock_semaphore`.
+
+Next we finish up `FUN_10007545`, after the semaphore lock we see the thread reading from the pipe being terminated. The extract resource executable is overwritten with al zeroes and deleted afterwards. All the allocated resources are also freed before the subroutine returns. We will rename this function to `extract_and_run_resource_1_or_2`.
+
+### Back to Ordinal_1
+
+```cpp
+if (((granted_privileges & 2) != 0) && ((detected_anti_virus & 1) != 0)) {
+  extract_and_run_resource_1_or_2();
+}
+lock_semaphore(critical_section_with_extra_debug);
+if ((detected_anti_virus & 2) != 0) {
+  FUN_10008999(granted_privileges & 6);
+}
+```
+
+Back in Ordinal\_1 the first thing we see is another call to the `lock_semaphore` subroutine we just renamed.
+
+This followed by a call to `FUN_10008999` with the granted privileges AND'ed with `6` which means that effectively the `SeShutdownPrivilege` is not passed. In addition this call only happens when bit `2` of `detect_anti_virus` is set, which again effectively just means anti virus detection was performed.
+
+### FUN_100089999
+
+```cpp
+undefined4 FUN_10008999(int privs){
+  WCHAR WVar1;
+  HRSRC resource;
+  int iVar2;
+  HANDLE hHeap;
+  UINT UVar3;
+  LPWSTR lpMem;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  undefined *lpMem_00;
+  undefined4 local_14;
+  DWORD local_10;
+  SIZE_T local_c;
+  undefined *local_8;
+  
+  local_10 = 0;
+  local_14 = 0;
+  local_8 = (undefined *)0x0;
+  local_c = 0;
+  resource = FindResourceW(DLL_handle,(LPCWSTR)0x3,(LPCWSTR)0xa);
+  if (resource == (HRSRC)0x0) {
+    iVar2 = 0;
+  }
+  else {
+    iVar2 = extract_and_inflate_resource(&local_c,resource);
+  }
+  if (iVar2 == 0) goto LAB_10008abd;
+  dwBytes = 0x208;
+  dwFlags = 8;
+  hHeap = GetProcessHeap();
+  DAT_1001f100 = (LPCWSTR)HeapAlloc(hHeap,dwFlags,dwBytes);
+  if (privs == 0) {
+    iVar2 = SHGetFolderPathW(0,0x23,0,0,DAT_1001f100);
+    if (iVar2 == 0) {
+      lpMem = DAT_1001f100;
+      do {
+        WVar1 = *lpMem;
+        lpMem = lpMem + 1;
+      } while (WVar1 != L'\0');
+      UVar3 = (int)((int)lpMem - (int)(DAT_1001f100 + 1)) >> 1;
+      goto LAB_10008a3b;
+    }
+LAB_10008a59:
+    dwFlags = 0;
+    lpMem = DAT_1001f100;
+    hHeap = GetProcessHeap();
+    HeapFree(hHeap,dwFlags,lpMem);
+    DAT_1001f100 = (LPCWSTR)0x0;
+  }
+  else {
+    UVar3 = GetWindowsDirectoryW(DAT_1001f100,0x104);
+LAB_10008a3b:
+    if ((UVar3 == 0) || (0x103 < UVar3 + 0xc)) goto LAB_10008a59;
+    PathAppendW(DAT_1001f100,L"dllhost.dat");
+  }
+  dwBytes = local_c;
+  lpMem_00 = local_8;
+  if ((DAT_1001f100 != (LPCWSTR)0x0) &&
+     ((iVar2 = FUN_10008946(DAT_1001f100,local_8,0), iVar2 != 0 ||
+      (local_10 = GetLastError(), dwBytes = local_c, lpMem_00 = local_8, local_10 == 0x50)))) {
+    local_10 = 0;
+    local_14 = 1;
+    dwBytes = local_c;
+    lpMem_00 = local_8;
+  }
+  while (dwBytes != 0) {
+    *lpMem_00 = 0;
+    dwBytes = dwBytes - 1;
+    lpMem_00 = lpMem_00 + 1;
+  }
+  dwFlags = 0;
+  lpMem_00 = local_8;
+  hHeap = GetProcessHeap();
+  HeapFree(hHeap,dwFlags,lpMem_00);
+LAB_10008abd:
+  SetLastError(local_10);
+  return local_14;
+}
+```
+
+The first thing we see in this function a handle to the resource with identifies `3` being obtained. We also see that this resource is extracted and inflated if this was succesful. Next we see that `0x208` (`520`) bytes of heap space are allocated an the reference to that is stored in `DAT_1001f100` which we will rename to `mem_208_bytes`.
+
+Next two possible execution flows depening on if the `SeDebugPrivilege` or `SeTcbPrivilege` is present or not. Either the value value of `mem_208_bytes` gets set to `C:\Windows\dllhost.dat` (using [GetWindowsDirectoryW](https://docs.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getwindowsdirectoryw)) if either privilege is present or it gets set to `%APPDATA%\dllhost.dat` (using [SHGetFolderPathW](https://docs.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-shgetfolderpathw)) if neither is present. In light of this we will also rename `mem_208_bytes` to `dllhost_path`.
+
+Next we see `FUN_10008946` being called with this path and `local_8` which we suspect to be the inflated resource but recall that this argument was passed via register to the inflate funtion. Given some more experience we can now setup custom data storage for this funtion so it takes an argument via the `EBX` register, this reveals that `local_8` is in fact the data passed to `FUN_10008946`. The third argument in this function call is `0`. Quickly checking some earlier assumptions around the inflate function we also see that they check out.
+
+### FUN_10008946
+
+```cpp
+undefined4 FUN_10008946(LPCWSTR param_1,LPCVOID param_2,DWORD param_3){
+  HANDLE hFile;
+  BOOL BVar1;
+  DWORD unaff_EBX;
+  undefined4 uVar2;
+  
+  uVar2 = 0;
+  hFile = CreateFileW(param_1,0x40000000,0,(LPSECURITY_ATTRIBUTES)0x0,(uint)(param_3 != 0) + 1,0,
+                      (HANDLE)0x0);
+  if (hFile != (HANDLE)0xffffffff) {
+    BVar1 = WriteFile(hFile,param_2,unaff_EBX,&param_3,(LPOVERLAPPED)0x0);
+    if ((BVar1 != 0) && (param_3 == unaff_EBX)) {
+      uVar2 = 1;
+    }
+    CloseHandle(hFile);
+  }
+  return uVar2;
+}
+```
+
+In this function we again see a register being pased. Using the same customer storage trick with add an extract register based parameter turning the function into.
+
+```cpp
+undefined4 write_data_to_file(LPCWSTR path,LPCVOID resource,DWORD written,DWORD len){
+  HANDLE hFile;
+  BOOL BVar1;
+  undefined4 uVar2;
+  
+  uVar2 = 0;
+  hFile = CreateFileW(path,0x40000000,0,(LPSECURITY_ATTRIBUTES)0x0,(uint)(written != 0) + 1,0,
+                      (HANDLE)0x0);
+  if (hFile != (HANDLE)0xffffffff) {
+    BVar1 = WriteFile(hFile,resource,len,&written,(LPOVERLAPPED)0x0);
+    if ((BVar1 != 0) && (written == len)) {
+      uVar2 = 1;
+    }
+    CloseHandle(hFile);
+  }
+  return uVar2;
+}
+```
+
+Referencing back to calling function we see that `param_4` is `local_4` which is the size of the inflated resource. The rest of this function is then very straight forward the file denoted by the passed `path` is created and the passed resource is then written to the file. We will rename the function to `write_data_to_file`.
+
+### FUN_10008999
+
+Back in `FUN_10008999` we see that after some verification that the write went well and some memory cleanup the function returns.
+
+What this leaves us with is another resource that was extracted by the malware, though since we don't see anything done with it we will just remember this for now and only extract and inspect it when it is used by NotPetya (assuming it is).
+
+
+
+
+
+
+
+
+
+# Resource 2
+
+We first go to the entry function. In order to speed up the analysis we will also assume that most checks are succesful.
 
 ```cpp
 ulonglong entry(void){
@@ -7856,6 +8068,44 @@ ulonglong entry(void){
   FUN_140005bec((UINT)uVar2);
   _cexit();
   return uVar2 & 0xffffffff;
+}
+```
+
+We see a fair few checks that cause the program the to exit. We also see the command line string being stored in `DAT_140010918` and the environemnts string being stored in `DAT_14000f508`.
+
+A quick look at `FUN_150005bec` also reveals that this function just exists the process. So next we look at `FUN_140002552`.
+
+```cpp
+undefined8 FUN_140002554(int param_1,longlong param_2){
+  int iVar1;
+  undefined8 uVar2;
+  undefined8 uVar3;
+  undefined local_res8 [32];
+  undefined **local_18;
+  undefined4 local_10;
+  
+  if (1 < param_1) {
+    DAT_14000f4e0 = FUN_140002440(*(LPCWSTR *)(param_2 + 8));
+  }
+  RtlGetNtVersionNumbers(&DAT_140010acc);
+  DAT_140010ad0 = DAT_140010ad0 & 0x3fff;
+  uVar3 = 0;
+  uVar2 = 1;
+  iVar1 = RtlAdjustPrivilege(0x14,1,0,local_res8);
+  if (-1 < iVar1) {
+    DAT_140010920 = &PTR_LAB_14000c0a8;
+    if (DAT_140010acc < 6) {
+      DAT_140010920 = &PTR_LAB_14000c080;
+    }
+    local_10 = 2;
+    local_18 = &PTR_PTR_DAT_14000bf20;
+    FUN_140003650((longlong *)&local_18,uVar2,uVar3);
+    (*(code *)DAT_140010920[1])();
+  }
+  if (DAT_14000f4e0 != (HANDLE)0xffffffffffffffff) {
+    CloseHandle(DAT_14000f4e0);
+  }
+  return 0;
 }
 ```
 
