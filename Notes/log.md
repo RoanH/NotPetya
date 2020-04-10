@@ -7756,6 +7756,13 @@ undefined4 FUN_100073fd(LPCWSTR pipe_string){
 }
 ```
 
+This function starts of with allocating some memory and then initialising a security descriptor using [InitlializeSecurityDescriptor](https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-initializesecuritydescriptor). This is then followed up by a call to [SetSecurityDescriptorDacl](https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-setsecuritydescriptordacl) to set the flag that indicates the presence of a DACL in the security descriptor. If any of this fails the subroutine returns immediately.
+
+If this all worked however an infinite while loop is entered. 
+
+
+...TODO pipe, con, etc
+
 
 
 
