@@ -7647,6 +7647,118 @@ void FUN_10007545(void){
 
 Back in `FUN_10007545` we see that the remainder of the subroutine is only executed when the resource was extracted succesfully.
 
+The first thing we see is a call to [GetTempPathW](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-gettemppathw) to get the path of the temp directory which is stored in `local_aa4` which we will rename to `temp_dir_path`. This is followed shortly by a call to [GetTempFileNameW](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-gettempfilenamew) this generates a unique random file name in the passed temp directory the name of which is returned in `local_694` which we will rename to `temp_file`.
+
+Given that the temporary file was created succesfully we see a call to [CoCreateGuid](https://docs.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cocreateguid) this call generates a unique GUID and returns it in the passed `GUID` struct. We will retype the passed `local_28` here and rename it to `guid`.
+
+Assuming the GUID was generated without issues we see a call to [StringFromCLSID](https://docs.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-stringfromclsid) this simply converts the GUID into a printable text format. This string is stored in `local_10` which we rename to `guid_string`.
+
+Next we see a call into `FUN_100073ae` with the `temp_file` and `local_c`. `local_c` appears to be allocated mempory but the initialisation appears lost.
+
+### FUN_100073ae
+
+```cpp
+undefined4 FUN_100073ae(LPCWSTR temp_file,LPCVOID memory){
+  HANDLE hFile;
+  BOOL BVar1;
+  LPCWSTR unaff_EBX;
+  undefined4 uVar2;
+  
+  uVar2 = 0;
+  hFile = CreateFileW(temp_file,0x40000000,0,(LPSECURITY_ATTRIBUTES)0x0,2,2,(HANDLE)0x0);
+  if (hFile != (HANDLE)0xffffffff) {
+    temp_file = (LPCWSTR)0x0;
+    BVar1 = WriteFile(hFile,memory,(DWORD)unaff_EBX,(LPDWORD)&temp_file,(LPOVERLAPPED)0x0);
+    if ((BVar1 != 0) && (unaff_EBX == temp_file)) {
+      uVar2 = 1;
+    }
+    CloseHandle(hFile);
+  }
+  return uVar2;
+}
+```
+
+This function is really straightforward as it just writes the given memory buffer to the given file. However, some information seems to be lost as the number of bytes to write seems to be passed via a register. Looking at the assembly we find that `EBX` at this point stores the length of `local_8` which is mot likely the size of the inflated resource. This also implies that the memory pass is probably the inflated resource data and that it is just written to disk now. We will also rename the function to `write_data_to_file`.
+
+### Back to FUN_10007545
+
+Right after the function call to write the data to the file we see a format string being crated with the `guid_string`. The string has the following format `\\.\pipe\guid`. Strings like this reference a named pipe on Windows. The resulting full string is stored in `local_12a4` which we will rename to `pipe_string`.
+
+Next we see a new thread being started to run `FUN_100073fd` with as argument passed the `pipe_string`.
+
+### FUN_100073fd
+
+```cpp
+undefined4 FUN_100073fd(LPCWSTR pipe_string){
+  HANDLE hHeap;
+  BOOL BVar1;
+  LPWSTR pWVar2;
+  int iVar3;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  LPCWSTR lpStart;
+  _SECURITY_ATTRIBUTES local_1c;
+  DWORD local_10;
+  DWORD local_c;
+  HANDLE local_8;
+  
+  local_1c.lpSecurityDescriptor = (LPVOID)0x0;
+  dwBytes = 0x14;
+  dwFlags = 8;
+  local_1c.nLength = 0xc;
+  local_1c.bInheritHandle = 0;
+  hHeap = GetProcessHeap();
+  local_1c.lpSecurityDescriptor = HeapAlloc(hHeap,dwFlags,dwBytes);
+  if (((local_1c.lpSecurityDescriptor == (LPVOID)0x0) ||
+      (BVar1 = InitializeSecurityDescriptor(local_1c.lpSecurityDescriptor,1), BVar1 == 0)) ||
+     (BVar1 = SetSecurityDescriptorDacl(local_1c.lpSecurityDescriptor,1,(PACL)0x0,0), BVar1 == 0)) {
+    return 0;
+  }
+  do {
+    do {
+      local_8 = CreateNamedPipeW(pipe_string,3,6,1,0,0,0,(LPSECURITY_ATTRIBUTES)&local_1c);
+    } while (local_8 == (HANDLE)0xffffffff);
+    BVar1 = ConnectNamedPipe(local_8,(LPOVERLAPPED)0x0);
+    if (BVar1 != 0) {
+      iVar3 = 0x1e;
+      do {
+        iVar3 = iVar3 + -1;
+        local_c = 0;
+        BVar1 = PeekNamedPipe(local_8,(LPVOID)0x0,0,(LPDWORD)0x0,&local_c,(LPDWORD)0x0);
+        if (BVar1 != 0) {
+          if (local_c != 0) {
+            dwFlags = 8;
+            dwBytes = local_c;
+            hHeap = GetProcessHeap();
+            lpStart = (LPCWSTR)HeapAlloc(hHeap,dwFlags,dwBytes);
+            if (lpStart != (LPCWSTR)0x0) {
+              local_10 = 0;
+              BVar1 = ReadFile(local_8,lpStart,local_c,&local_10,(LPOVERLAPPED)0x0);
+              if (((BVar1 != 0) && (local_10 == local_c)) &&
+                 (pWVar2 = StrChrW(lpStart,L':'), pWVar2 != (LPWSTR)0x0)) {
+                *pWVar2 = L'\0';
+                handle_colon_arg(lpStart,pWVar2 + 1,2);
+              }
+              dwFlags = 0;
+              hHeap = GetProcessHeap();
+              HeapFree(hHeap,dwFlags,lpStart);
+            }
+            break;
+          }
+          Sleep(1000);
+        }
+      } while (iVar3 != 0);
+      FlushFileBuffers(local_8);
+      DisconnectNamedPipe(local_8);
+    }
+    CloseHandle(local_8);
+  } while( true );
+}
+```
+
+
+
+
 
 
 
