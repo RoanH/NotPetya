@@ -7758,11 +7758,33 @@ undefined4 FUN_100073fd(LPCWSTR pipe_string){
 
 This function starts of with allocating some memory and then initialising a security descriptor using [InitlializeSecurityDescriptor](https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-initializesecuritydescriptor). This is then followed up by a call to [SetSecurityDescriptorDacl](https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-setsecuritydescriptordacl) to set the flag that indicates the presence of a DACL in the security descriptor. If any of this fails the subroutine returns immediately.
 
-If this all worked however an infinite while loop is entered. 
+If this all worked however an infinite while loop is entered. Inside this loop is another loop that runs forever until it makes to succesfully create a named pipe using [CreateNamedPipeW](https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createnamedpipea). The pipe opened has the earlier constructed pipe string as its unique name and is to the bi directional type. The data passed through is of the message type and at most one pipe of this instance is allowed to exist at the same time. The passed security attributes are mostly likely passed mainly so child processes can also open and read from the pipe meaning that we should probably look for any child processes that are started later.
 
+After the pipe was created [ConnectNamedPipe](https://docs.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-connectnamedpipe) is invoked to connect to it.
 
-...TODO pipe, con, etc
+After this a loop is started that runs at an 1 second interval and for at most `0x1e` or `30` iterations. Each of these iterations starts with a call to [PeeknamedPipe](https://docs.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-peeknamedpipe). This returns the total number of bytes available for reading in `local_c` (but no data is actually read).
 
+If no data was available for reading then the thread sleeps for 1000ms and then starts the next iteration of the loop. If data was available enough memory is allocated on heap to store the number of bytes available on the pipe. A call is then made to the [ReadFile](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-readfile) function to read from the pipe the retrieved number of available bytes.
+
+After checking that the number of bytes actually read was the same as the expected number of bytes on the pipe. It is then checked using [StrChrW](https://docs.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-strchrw) that the returned data includes a `:`. This `:` is then replaced by `NUL` (`\0`) and `handle_colon_arg` invoked with the full argument string (as `arg`), a pointer to the `:` location plus one (as `arg_len`) and `2` for the third argument that was not renamed before. We know that this data will end up in the `possible_lock` subroutines via `handle_colon_arg` so this is effectively a dead end. We will rename `FUN_100073fd` to `read_and_handle_pipe_data`.
+
+### Back to FUN_10007545
+
+After the thread that handles pipe data was created we see that a new process is created using [CreateProcessW](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw). The most important detail to note here is that it runs the extracted resource and the arguments passed to the process consist of the location of the resource file on disk and the name of the pipe that was created. Evidently the thread we just inspected receives data from this process.
+
+Given the information we have right now we might be able to get more information. From the following [SO](https://stackoverflow.com/questions/9050260/what-does-a-zlib-header-look-like) post we find that zlib has 3 header options `78 01`, `78 9C` or `78 DA`. If we look at the hex data in `2.bin` then we see the following.
+
+```
+00000000   00 DC 00 00  78 DA EC BD  79 7C 54 45  D6 30 7C 3B  ....x...y|TE.0|;
+00000010   DD 9D 74 42  9A DB 2C 0D  11 88 B4 18  34 12 96 60  ..tB..,.....4..`
+00000020   54 12 9B 68  5F E8 86 DB  70 1B A3 AC  8E A0 40 20  T..h_...p.....@
+```
+
+We already know the first 32 bits are used for something else. And what we see right after that is `78 DA` which is one of the possible zlib headers. We will try to strip off the first 32 bits from the file and try to decompress the remainder.
+
+```
+dd if=2.bin of=res2.bin bs=1 skip=4
+```
 
 
 
