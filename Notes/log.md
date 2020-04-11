@@ -10186,14 +10186,15 @@ This also effectively finsihes this function, the interesting part is that each 
 
 ### Back to Ordinal_1
 
+After encryption all the drives not a lot happens anymore. The version of the OS is gotten and that is used to skip certain parts of the remaining execution flow, most notably the reasonably larger function `FUN_100007d6f` which we will also skip for now.
 
+### Skipped FUN_10007d6f
 
+After this we reach the very end of `Ordinal_1`. We see the following command being constructed `wevtutil cl Setup & wevtutil cl System & wevtutil cl Security & wevtutil clApplication & fsutil usn deletejournal /D %dll:` which clears all the event logs related to the malware. And this is then executed.
 
+After this the malware tries give shutdown the system assuming it has the permission to do so. It tries in several ways, by invoking the internal Windows function [NtRaiseHardError](https://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FError%2FNtRaiseHardError.html). Alternatively it will try a reboot of the system using [InitiateSystemShutdownExW](https://docs.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-initiatesystemshutdowna) if that did not work then it will try [ExitWindowsEx](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-exitwindowsex).
 
-
-
-
-
+And that finishes the entire main malware binary.
 
 # Resource 2
 
