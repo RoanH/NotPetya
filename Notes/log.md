@@ -8483,7 +8483,7 @@ Directly after the user credentials function we see a call to `lock_semaphore` w
 
 ### FUN_10006f40
 
-`` cpp
+```cpp
 void FUN_10006f40(short *param_1){
   short sVar1;
   undefined4 *puVar2;
