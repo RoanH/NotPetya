@@ -8542,6 +8542,7 @@ This function allocates some memory and then proceeds to call `FUN_10007167` wit
 
 ### FUN_10007167
 
+```cpp
 int FUN_10007167(int *param_1){
   HANDLE pvVar1;
   int iVar2;
