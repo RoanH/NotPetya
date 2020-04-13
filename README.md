@@ -9,7 +9,7 @@ This repository contains an analysis of the NotPetya malware. The SHA256 hash of
 
 - A Ghidra project for the NotPetya binary with the aforementioned hash can be found in [NotPetya](/NotPetya).
 - A log for the reverse engineering process with highly detailed descriptions of all the subroutines can be found in [Notes](/Notes/log.md).
-- A report summarizing the key findings can be found [here](/2IC80%20Lab%20Group%2051.pdf).
+- A report summarizing the key findings can be found [here](/2IC80%20Lab%20Report%20Group%2051.pdf).
 
 ### Malware
 
